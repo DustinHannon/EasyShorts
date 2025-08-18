@@ -93,16 +93,25 @@ export function GenerateStep() {
         const supabase = createClient()
         const { data, error } = await supabase.from("backgrounds").select("file_path, url").eq("id", savedId).single()
 
+        console.log("🔍 Database query result:", { data, error, savedId })
+
         if (!error && data) {
-          // Use file_path if available, fallback to url
           const resolvedUrl = data.file_path || data.url
-          if (resolvedUrl) {
+          if (resolvedUrl && resolvedUrl.trim() !== "") {
             console.log("✅ Found saved background URL:", resolvedUrl)
             return resolvedUrl
+          } else {
+            console.warn("⚠️ Saved background record exists but has no valid URL:", {
+              data,
+              file_path: data.file_path,
+              url: data.url,
+            })
           }
+        } else {
+          console.warn("⚠️ Database query failed or returned no data:", { error, data, savedId })
         }
 
-        console.warn("⚠️ Saved background not found or has no URL:", { error, data, savedId })
+        console.warn("⚠️ Falling back to default background due to invalid saved background")
         return "/abstract-background.png"
       } catch (error) {
         console.error("❌ Error fetching saved background:", error)

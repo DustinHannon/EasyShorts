@@ -94,9 +94,17 @@ export class ClientVideoProcessor {
         await this.ffmpeg.deleteFile(filename)
         this.filesInVFS.delete(filename)
         console.log(`✅ Successfully deleted ${filename} from virtual filesystem`)
+      } else {
+        console.log(`ℹ️ File ${filename} not in virtual filesystem, skipping deletion`)
       }
     } catch (error) {
-      console.warn(`⚠️ Could not delete ${filename} from virtual filesystem:`, error)
+      if (error instanceof Error && error.message.includes("ErrnoError")) {
+        console.warn(`⚠️ Filesystem error deleting ${filename} (file may not exist):`, error.message)
+      } else {
+        console.warn(`⚠️ Could not delete ${filename} from virtual filesystem:`, error)
+      }
+      // Remove from tracking even if deletion failed
+      this.filesInVFS.delete(filename)
     }
   }
 
