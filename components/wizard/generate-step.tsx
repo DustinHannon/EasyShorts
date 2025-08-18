@@ -267,6 +267,7 @@ export function GenerateStep() {
           quality: state.project.video_settings?.quality || "1080p",
           captions: captionsEnabled,
           projectId: state.project.id,
+          voiceSpeed: state.project.voice_settings?.speed || 1.0,
         },
         (progress) => {
           setGenerationProgress(progress)

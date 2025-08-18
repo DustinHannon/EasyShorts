@@ -9,6 +9,7 @@ export interface VideoProcessingOptions {
   quality: "720p" | "1080p" | "4k"
   captions: boolean
   projectId: string
+  voiceSpeed?: number
 }
 
 export interface ProcessingProgress {
@@ -178,10 +179,16 @@ export class ClientVideoProcessor {
       let drawtextFilters: string[] = []
       if (captions && fontData) {
         onProgress?.({ stage: "captions", progress: 35, message: "Generating captions..." })
-        drawtextFilters = this.generateCaptionFilters(options.script, {
-          width: dimensions.width * qualityConfig.scale,
-          height: dimensions.height * qualityConfig.scale,
-        })
+        const voiceSpeed = options.voiceSpeed || 1.0
+        console.log(`📝 Using voice speed ${voiceSpeed}x for caption timing`)
+        drawtextFilters = this.generateCaptionFilters(
+          options.script,
+          {
+            width: dimensions.width * qualityConfig.scale,
+            height: dimensions.height * qualityConfig.scale,
+          },
+          voiceSpeed,
+        )
         console.log("📝 Generated caption filters:", drawtextFilters.length, "filters")
         console.log("📝 First few caption filters:", drawtextFilters.slice(0, 3))
       } else {
@@ -227,14 +234,25 @@ export class ClientVideoProcessor {
     }
   }
 
-  private generateCaptionFilters(script: string, dimensions: { width: number; height: number }): string[] {
+  private generateCaptionFilters(
+    script: string,
+    dimensions: { width: number; height: number },
+    voiceSpeed = 1.0,
+  ): string[] {
     const words = script.trim().split(/\s+/)
     const fontSize = Math.max(48, Math.floor(dimensions.height * 0.06))
     const yPosition = Math.floor(dimensions.height * 0.85)
 
-    // Estimate timing: assume average speaking rate of 2.5 words per second
-    const wordsPerSecond = 2.5
-    const timePerWord = 1 / wordsPerSecond
+    const baseWordsPerSecond = 2.5
+    const adjustedWordsPerSecond = baseWordsPerSecond * voiceSpeed
+    const timePerWord = 1 / adjustedWordsPerSecond
+
+    console.log(`📝 Caption timing calculation:`, {
+      voiceSpeed,
+      baseWordsPerSecond,
+      adjustedWordsPerSecond,
+      timePerWord: timePerWord.toFixed(2),
+    })
 
     const drawtextFilters: string[] = []
 
@@ -251,7 +269,9 @@ export class ClientVideoProcessor {
       drawtextFilters.push(drawtextFilter)
     }
 
-    console.log(`📝 Generated ${drawtextFilters.length} time-synchronized caption filters`)
+    console.log(
+      `📝 Generated ${drawtextFilters.length} time-synchronized caption filters with voice speed ${voiceSpeed}x`,
+    )
     console.log("📝 First caption filter:", drawtextFilters[0]?.substring(0, 150) + "...")
     return drawtextFilters
   }
