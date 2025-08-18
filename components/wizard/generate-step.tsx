@@ -91,19 +91,18 @@ export function GenerateStep() {
 
       try {
         const supabase = createClient()
-        const { data, error } = await supabase.from("backgrounds").select("file_path, url").eq("id", savedId).single()
+        const { data, error } = await supabase.from("backgrounds").select("url").eq("id", savedId).single()
 
         console.log("🔍 Database query result:", { data, error, savedId })
 
         if (!error && data) {
-          const resolvedUrl = data.file_path || data.url
+          const resolvedUrl = data.url
           if (resolvedUrl && resolvedUrl.trim() !== "") {
             console.log("✅ Found saved background URL:", resolvedUrl)
             return resolvedUrl
           } else {
             console.warn("⚠️ Saved background record exists but has no valid URL:", {
               data,
-              file_path: data.file_path,
               url: data.url,
             })
           }
