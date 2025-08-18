@@ -293,22 +293,17 @@ export class ClientVideoProcessor {
     const baseFilter = `[0:v]scale=${scaledWidth}:${scaledHeight}:force_original_aspect_ratio=increase,crop=${scaledWidth}:${scaledHeight},fps=30[video]`
 
     let filterComplex: string
+    let mapVideo: string
+
     if (drawtextFilters.length > 0) {
-      // Build a proper filter chain where each drawtext filter is applied to the previous result
-      let currentLabel = "video"
-      let filterChain = baseFilter
-
-      drawtextFilters.forEach((filter, index) => {
-        const nextLabel = index === drawtextFilters.length - 1 ? "final" : `caption${index}`
-        filterChain += `;[${currentLabel}]${filter}[${nextLabel}]`
-        currentLabel = nextLabel
-      })
-
-      filterComplex = filterChain
+      const combinedDrawtext = drawtextFilters.join(",")
+      filterComplex = `${baseFilter};[video]${combinedDrawtext}[final]`
+      mapVideo = "[final]"
       console.log("🎬 Caption filter chain created with", drawtextFilters.length, "filters")
-      console.log("🎬 Full filter complex:", filterComplex)
+      console.log("🎬 Combined drawtext filters:", combinedDrawtext.substring(0, 200) + "...")
     } else {
       filterComplex = baseFilter
+      mapVideo = "[video]"
       console.log("🎬 Using base filter only (no captions):", filterComplex)
     }
 
@@ -324,7 +319,7 @@ export class ClientVideoProcessor {
       "-filter_complex",
       filterComplex,
       "-map",
-      drawtextFilters.length > 0 ? "[final]" : "[video]",
+      mapVideo,
       "-map",
       "1:a",
       "-c:v",
