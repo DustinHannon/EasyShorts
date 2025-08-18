@@ -367,7 +367,26 @@ export class ClientVideoProcessor {
       console.log("🎬 Starting FFmpeg execution...")
       await this.ffmpeg.exec(ffmpegArgs)
       console.log("✅ FFmpeg execution completed successfully")
-      this.filesInVFS.add("output.mp4")
+
+      try {
+        // Try to read a small portion to verify the file exists and is accessible
+        const testRead = await this.ffmpeg.readFile("output.mp4")
+        if (!testRead || (testRead as Uint8Array).length === 0) {
+          throw new Error("Output file exists but is empty")
+        }
+        this.filesInVFS.add("output.mp4")
+        console.log("✅ Output file verified and added to VFS tracking")
+      } catch (verifyError) {
+        console.error("❌ Output file verification failed:", verifyError)
+        // List all files in VFS for debugging
+        try {
+          const files = await this.ffmpeg.listDir("/")
+          console.log("📁 Files in virtual filesystem:", files)
+        } catch (listError) {
+          console.error("❌ Could not list VFS files:", listError)
+        }
+        throw new Error(`FFmpeg completed but output file is not accessible: ${verifyError}`)
+      }
     } catch (error) {
       console.error("❌ FFmpeg execution failed:", error)
       console.error("❌ FFmpeg args that failed:", ffmpegArgs)
