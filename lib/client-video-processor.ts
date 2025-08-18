@@ -141,7 +141,7 @@ export class ClientVideoProcessor {
       if (captions) {
         try {
           console.log("📥 Downloading font for captions...")
-          fontData = await this.downloadAsset("/fonts/Inter-Regular.ttf")
+          fontData = await this.downloadAsset("/fonts/Roboto_Condensed-Medium.ttf")
           console.log("✅ Font downloaded:", fontData.byteLength, "bytes")
         } catch (error) {
           console.warn("⚠️ Could not download font file, captions will be disabled:", error)
@@ -162,7 +162,7 @@ export class ClientVideoProcessor {
       await this.safeWriteFile("background.jpg", new Uint8Array(backgroundData))
 
       if (captions && fontData && fontData.byteLength > 0) {
-        await this.safeWriteFile("Inter-Regular.ttf", new Uint8Array(fontData))
+        await this.safeWriteFile("Roboto_Condensed-Medium.ttf", new Uint8Array(fontData))
         console.log("✅ Font file written to virtual filesystem")
       }
 
@@ -196,7 +196,7 @@ export class ClientVideoProcessor {
       console.log("🧹 Cleaning up virtual filesystem...")
       await this.safeDeleteFile("audio.mp3")
       await this.safeDeleteFile("background.jpg")
-      await this.safeDeleteFile("Inter-Regular.ttf")
+      await this.safeDeleteFile("Roboto_Condensed-Medium.ttf")
       await this.safeDeleteFile("output.mp4")
       this.filesInVFS.clear()
     }
@@ -242,7 +242,7 @@ export class ClientVideoProcessor {
       const yPosition = Math.floor(dimensions.height * 0.8)
 
       drawtextFilters.push(
-        `drawtext=fontfile=Inter-Regular.ttf:text=${cleanText}:fontcolor=white:fontsize=${fontSize}:x=(w-text_w)/2:y=${yPosition}:enable=between(t\\,${startTime}\\,${endTime})`,
+        `drawtext=fontfile=Roboto_Condensed-Medium.ttf:text=${cleanText}:fontcolor=white:fontsize=${fontSize}:x=(w-text_w)/2:y=${yPosition}:enable=between(t\\,${startTime}\\,${endTime})`,
       )
     }
 

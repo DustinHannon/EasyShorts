@@ -189,7 +189,7 @@ Row Level Security (RLS) policies ensure data isolation:
 - Enhanced error monitoring and alerting
 \`\`\`
 
-```plaintext file=".gitignore"
+\`\`\`plaintext file=".gitignore"
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
