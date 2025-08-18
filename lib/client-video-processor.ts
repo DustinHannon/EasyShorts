@@ -112,7 +112,8 @@ export class ClientVideoProcessor {
     options: VideoProcessingOptions,
     onProgress?: (progress: ProcessingProgress) => void,
   ): Promise<Blob> {
-    const { format, quality, captions, projectId } = options
+    const { format, quality, projectId } = options
+    const captions = false // Force disable captions temporarily
     const dimensions = formatDimensions[format]
     const qualityConfig = qualitySettings[quality]
 
@@ -123,7 +124,7 @@ export class ClientVideoProcessor {
       scriptPreview: options.script.substring(0, 200) + "...",
       format,
       quality,
-      captions,
+      captions: captions, // Show the forced value
       projectId,
       dimensions,
       qualityConfig,
