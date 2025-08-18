@@ -82,8 +82,7 @@ export function GenerateStep() {
     console.log("🖼️ Resolving background URL for:", background)
 
     if (background.startsWith("saved-")) {
-      const backgroundParts = background.split("-")
-      const savedId = backgroundParts[1]
+      const savedId = background.substring(6) // Remove "saved-" prefix (6 characters)
       if (!savedId || savedId.trim() === "") {
         console.warn("⚠️ Invalid saved background ID, using default")
         return "/abstract-background.png"
