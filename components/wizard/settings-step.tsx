@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -13,13 +13,21 @@ export function SettingsStep() {
   const { state, dispatch } = useWizard()
   const [isSaving, setIsSaving] = useState(false)
 
-  const videoSettings = state.project.video_settings || {
+  const defaultSettings = {
     format: "vertical",
-    quality: "1080p",
+    quality: "720p",
     duration: "auto",
     captions: true,
     background: "default",
   }
+
+  const videoSettings = { ...defaultSettings, ...state.project.video_settings }
+
+  useEffect(() => {
+    if (!state.project.video_settings || Object.keys(state.project.video_settings).length === 0) {
+      dispatch({ type: "UPDATE_PROJECT", updates: { video_settings: defaultSettings } })
+    }
+  }, [])
 
   const handleSettingChange = (key: string, value: any) => {
     const newSettings = { ...videoSettings, [key]: value }
@@ -56,7 +64,7 @@ export function SettingsStep() {
             <label className="block text-sm font-medium text-gray-300">Video Format</label>
             <Select value={videoSettings.format} onValueChange={(value) => handleSettingChange("format", value)}>
               <SelectTrigger className="bg-white/5 border-white/20 text-white">
-                <SelectValue />
+                <SelectValue placeholder="Vertical (9:16) - TikTok/Shorts" />
               </SelectTrigger>
               <SelectContent className="bg-slate-800 border-slate-700">
                 <SelectItem value="vertical" className="text-white">
@@ -76,7 +84,7 @@ export function SettingsStep() {
             <label className="block text-sm font-medium text-gray-300">Quality</label>
             <Select value={videoSettings.quality} onValueChange={(value) => handleSettingChange("quality", value)}>
               <SelectTrigger className="bg-white/5 border-white/20 text-white">
-                <SelectValue />
+                <SelectValue placeholder="720p HD" />
               </SelectTrigger>
               <SelectContent className="bg-slate-800 border-slate-700">
                 <SelectItem value="720p" className="text-white">
@@ -96,7 +104,7 @@ export function SettingsStep() {
             <label className="block text-sm font-medium text-gray-300">Duration</label>
             <Select value={videoSettings.duration} onValueChange={(value) => handleSettingChange("duration", value)}>
               <SelectTrigger className="bg-white/5 border-white/20 text-white">
-                <SelectValue />
+                <SelectValue placeholder="Auto (Based on script)" />
               </SelectTrigger>
               <SelectContent className="bg-slate-800 border-slate-700">
                 <SelectItem value="auto" className="text-white">
