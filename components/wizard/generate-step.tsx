@@ -91,16 +91,22 @@ export function GenerateStep() {
 
       try {
         const supabase = createClient()
-        const { data, error } = await supabase.from("backgrounds").select("url").eq("id", savedId).single()
+        const { data, error } = await supabase.from("backgrounds").select("file_path, url").eq("id", savedId).single()
 
-        if (!error && data?.url) {
-          console.log("✅ Found saved background URL:", data.url)
-          return data.url
-        } else {
-          console.warn("⚠️ Saved background not found, using default:", error)
+        if (!error && data) {
+          // Use file_path if available, fallback to url
+          const resolvedUrl = data.file_path || data.url
+          if (resolvedUrl) {
+            console.log("✅ Found saved background URL:", resolvedUrl)
+            return resolvedUrl
+          }
         }
+
+        console.warn("⚠️ Saved background not found or has no URL:", { error, data, savedId })
+        return "/abstract-background.png"
       } catch (error) {
         console.error("❌ Error fetching saved background:", error)
+        return "/abstract-background.png"
       }
     }
 
