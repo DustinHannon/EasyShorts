@@ -228,15 +228,32 @@ export class ClientVideoProcessor {
   }
 
   private generateCaptionFilters(script: string, dimensions: { width: number; height: number }): string[] {
-    const cleanText = this.cleanTextForDrawtext(script)
+    const words = script.trim().split(/\s+/)
     const fontSize = Math.max(48, Math.floor(dimensions.height * 0.06))
     const yPosition = Math.floor(dimensions.height * 0.85)
 
-    // Use a single drawtext filter for the entire script to avoid chaining issues
-    const drawtextFilter = `drawtext=fontfile=Roboto_Condensed-Medium.ttf:text='${cleanText}':fontcolor=white:fontsize=${fontSize}:x=(w-text_w)/2:y=${yPosition}:box=1:boxcolor=black@0.5:boxborderw=5`
+    // Estimate timing: assume average speaking rate of 2.5 words per second
+    const wordsPerSecond = 2.5
+    const timePerWord = 1 / wordsPerSecond
 
-    console.log("📝 Generated single caption filter:", drawtextFilter.substring(0, 100) + "...")
-    return [drawtextFilter]
+    const drawtextFilters: string[] = []
+
+    // Group words into 1-3 word segments for better readability
+    for (let i = 0; i < words.length; i += 2) {
+      const wordGroup = words.slice(i, i + 2).join(" ") // Take 2 words at a time
+      const cleanText = this.cleanTextForDrawtext(wordGroup)
+
+      const startTime = i * timePerWord
+      const endTime = (i + 2) * timePerWord
+
+      const drawtextFilter = `drawtext=fontfile=Roboto_Condensed-Medium.ttf:text='${cleanText}':fontcolor=white:fontsize=${fontSize}:x=(w-text_w)/2:y=${yPosition}:box=1:boxcolor=black@0.5:boxborderw=5:enable='between(t,${startTime.toFixed(1)},${endTime.toFixed(1)})'`
+
+      drawtextFilters.push(drawtextFilter)
+    }
+
+    console.log(`📝 Generated ${drawtextFilters.length} time-synchronized caption filters`)
+    console.log("📝 First caption filter:", drawtextFilters[0]?.substring(0, 150) + "...")
+    return drawtextFilters
   }
 
   private cleanTextForDrawtext(text: string): string {
@@ -276,10 +293,10 @@ export class ClientVideoProcessor {
     let mapVideo: string
 
     if (drawtextFilters.length > 0) {
-      const singleDrawtext = drawtextFilters[0] // Use only the first (and only) filter
-      filterComplex = `${baseFilter};[video]${singleDrawtext}[final]`
+      const combinedDrawtext = drawtextFilters.join(",")
+      filterComplex = `${baseFilter};[video]${combinedDrawtext}[final]`
       mapVideo = "[final]"
-      console.log("🎬 Using single caption filter:", singleDrawtext.substring(0, 100) + "...")
+      console.log("🎬 Using time-synchronized captions with", drawtextFilters.length, "filters")
     } else {
       filterComplex = baseFilter
       mapVideo = "[video]"
