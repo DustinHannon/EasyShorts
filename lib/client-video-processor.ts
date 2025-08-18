@@ -113,7 +113,7 @@ export class ClientVideoProcessor {
     onProgress?: (progress: ProcessingProgress) => void,
   ): Promise<Blob> {
     const { format, quality, projectId } = options
-    const captions = false // Force disable captions temporarily
+    const captions = options.captions // Re-enable captions by using the original captions setting
     const dimensions = formatDimensions[format]
     const qualityConfig = qualitySettings[quality]
 
@@ -124,7 +124,7 @@ export class ClientVideoProcessor {
       scriptPreview: options.script.substring(0, 200) + "...",
       format,
       quality,
-      captions: captions, // Show the forced value
+      captions: captions, // Show the actual value
       projectId,
       dimensions,
       qualityConfig,
@@ -228,49 +228,28 @@ export class ClientVideoProcessor {
   }
 
   private generateCaptionFilters(script: string, dimensions: { width: number; height: number }): string[] {
-    const drawtextFilters: string[] = []
+    const cleanText = this.cleanTextForDrawtext(script)
+    const fontSize = Math.max(48, Math.floor(dimensions.height * 0.06))
+    const yPosition = Math.floor(dimensions.height * 0.85)
 
-    // Split script into shorter, manageable chunks
-    const words = script.split(" ").filter((word) => word.trim().length > 0)
-    const wordsPerChunk = 4 // Smaller chunks for better reliability
-    const wordsPerSecond = 2 // Slower pace for better readability
-    let currentTime = 0
+    // Use a single drawtext filter for the entire script to avoid chaining issues
+    const drawtextFilter = `drawtext=fontfile=Roboto_Condensed-Medium.ttf:text='${cleanText}':fontcolor=white:fontsize=${fontSize}:x=(w-text_w)/2:y=${yPosition}:box=1:boxcolor=black@0.5:boxborderw=5`
 
-    for (let i = 0; i < words.length; i += wordsPerChunk) {
-      const chunk = words.slice(i, i + wordsPerChunk).join(" ")
-      const duration = chunk.split(" ").length / wordsPerSecond
-      const startTime = currentTime
-      const endTime = currentTime + duration
-      currentTime = endTime
-
-      // Simple text cleaning - remove problematic characters
-      const cleanText = this.cleanTextForDrawtext(chunk)
-
-      // Basic, reliable drawtext settings with font file
-      const fontSize = Math.max(32, Math.floor(dimensions.height * 0.05))
-      const yPosition = Math.floor(dimensions.height * 0.8)
-
-      drawtextFilters.push(
-        `drawtext=fontfile=Roboto_Condensed-Medium.ttf:text=${cleanText}:fontcolor=white:fontsize=${fontSize}:x=(w-text_w)/2:y=${yPosition}:enable=between(t\\,${startTime}\\,${endTime})`,
-      )
-    }
-
-    return drawtextFilters
+    console.log("📝 Generated single caption filter:", drawtextFilter.substring(0, 100) + "...")
+    return [drawtextFilter]
   }
 
   private cleanTextForDrawtext(text: string): string {
-    return (
-      text
-        // Remove or replace problematic characters
-        .replace(/['"]/g, "") // Remove quotes entirely
-        .replace(/[:]/g, " ") // Replace colons with spaces
-        .replace(/[%]/g, "percent") // Replace % with word
-        .replace(/[\\]/g, "") // Remove backslashes
-        .replace(/[\n\r\t]/g, " ") // Replace newlines/tabs with spaces
-        .replace(/[^\w\s.,!?-]/g, "") // Keep only safe characters
-        .replace(/\s+/g, " ") // Normalize whitespace
-        .trim()
-    )
+    return text
+      .replace(/['"]/g, "") // Remove quotes entirely
+      .replace(/[:]/g, " ") // Replace colons with spaces
+      .replace(/[%]/g, "percent") // Replace % with word
+      .replace(/[\\]/g, "") // Remove backslashes
+      .replace(/[\n\r\t]/g, " ") // Replace newlines/tabs with spaces
+      .replace(/[^\w\s.,!?-]/g, "") // Keep only safe characters
+      .replace(/\s+/g, " ") // Normalize whitespace
+      .substring(0, 200) // Limit length to avoid filter complexity
+      .trim()
   }
 
   private async createVideo(options: {
@@ -297,11 +276,10 @@ export class ClientVideoProcessor {
     let mapVideo: string
 
     if (drawtextFilters.length > 0) {
-      const combinedDrawtext = drawtextFilters.join(",")
-      filterComplex = `${baseFilter};[video]${combinedDrawtext}[final]`
+      const singleDrawtext = drawtextFilters[0] // Use only the first (and only) filter
+      filterComplex = `${baseFilter};[video]${singleDrawtext}[final]`
       mapVideo = "[final]"
-      console.log("🎬 Caption filter chain created with", drawtextFilters.length, "filters")
-      console.log("🎬 Combined drawtext filters:", combinedDrawtext.substring(0, 200) + "...")
+      console.log("🎬 Using single caption filter:", singleDrawtext.substring(0, 100) + "...")
     } else {
       filterComplex = baseFilter
       mapVideo = "[video]"
