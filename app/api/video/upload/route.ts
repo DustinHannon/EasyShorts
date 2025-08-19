@@ -41,15 +41,17 @@ export async function POST(request: Request): Promise<NextResponse> {
           }),
         }
       },
-      onUploadCompleted: async ({ blob, tokenPayload }) => {
+      onUploadCompleted: async ({ blob, tokenPayload, clientPayload }) => {
         console.log("📤 Video upload completed:", blob.url)
 
         try {
-          const payload = JSON.parse(tokenPayload || "{}")
-          const userId = payload.userId
-          const projectId = payload.projectId
-          const quality = payload.quality || "1080p"
-          const duration = payload.duration || 60
+          const tokenData = JSON.parse(tokenPayload || "{}")
+          const userId = tokenData.userId
+
+          const clientData = JSON.parse(clientPayload || "{}")
+          const projectId = clientData.projectId
+          const quality = clientData.quality || "1080p"
+          const duration = clientData.duration || 60
 
           if (!userId || !projectId) {
             console.error("❌ Missing required payload data:", { userId, projectId })
