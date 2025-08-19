@@ -43,15 +43,16 @@ export function VideoGallery({ videos }: VideoGalleryProps) {
       return null
     }
 
+    let backgroundUrl = video.background_url
     if (video.background_type === "preset") {
-      return video.background_url
+      backgroundUrl = video.background_url
     } else if (video.background_type?.startsWith("saved-")) {
-      return video.background_url
+      backgroundUrl = video.background_url
     } else if (video.background_type === "custom") {
-      return video.background_url
+      backgroundUrl = video.background_url
     }
 
-    return video.background_url
+    return backgroundUrl
   }
 
   const handleBackgroundError = (backgroundUrl: string) => {
@@ -207,19 +208,27 @@ export function VideoGallery({ videos }: VideoGalleryProps) {
                         backgroundColor: backgroundImage ? "transparent" : "#000000",
                       }}
                     >
-                      {backgroundImage && (
-                        <img
-                          src={backgroundImage || "/placeholder.svg"}
-                          alt="Video background"
-                          className="absolute inset-0 w-full h-full object-cover"
-                          onError={() => handleBackgroundError(backgroundImage)}
-                        />
+                      {backgroundImage ? (
+                        <>
+                          <img
+                            src={backgroundImage || "/placeholder.svg"}
+                            alt="Video background"
+                            className="absolute inset-0 w-full h-full object-cover"
+                            onError={() => handleBackgroundError(backgroundImage)}
+                          />
+                          <div className="absolute inset-0 bg-black/0 hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 hover:opacity-100">
+                            <div className="bg-white/20 backdrop-blur-sm rounded-full p-3">
+                              <div className="text-white text-2xl">▶️</div>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        /* Only show film icon when no background image is available */
+                        <div className="text-center">
+                          <div className="text-4xl mb-2">🎬</div>
+                          <p className="text-white text-sm">Click to play</p>
+                        </div>
                       )}
-
-                      <div className="relative z-10 text-center">
-                        <div className="text-4xl mb-2">🎬</div>
-                        <p className="text-white text-sm">Click to play</p>
-                      </div>
                     </div>
 
                     {/* Video Info */}
@@ -267,16 +276,22 @@ export function VideoGallery({ videos }: VideoGalleryProps) {
                         backgroundColor: backgroundImage ? "transparent" : "#000000",
                       }}
                     >
-                      {backgroundImage && (
-                        <img
-                          src={backgroundImage || "/placeholder.svg"}
-                          alt="Video background"
-                          className="absolute inset-0 w-full h-full object-cover"
-                          onError={() => handleBackgroundError(backgroundImage)}
-                        />
+                      {backgroundImage ? (
+                        <>
+                          <img
+                            src={backgroundImage || "/placeholder.svg"}
+                            alt="Video background"
+                            className="absolute inset-0 w-full h-full object-cover"
+                            onError={() => handleBackgroundError(backgroundImage)}
+                          />
+                          <div className="absolute inset-0 bg-black/0 hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 hover:opacity-100">
+                            <div className="text-white text-lg">▶️</div>
+                          </div>
+                        </>
+                      ) : (
+                        /* Only show film icon when no background available in list view */
+                        <div className="text-white text-lg">🎬</div>
                       )}
-
-                      <div className="relative z-10 text-white text-lg">🎬</div>
                     </div>
 
                     {/* Info */}

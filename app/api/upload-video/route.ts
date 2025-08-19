@@ -66,6 +66,48 @@ export async function POST(request: NextRequest) {
 
     console.log(`✅ Video uploaded to Blob storage: ${blob.url}`)
 
+    const getBackgroundInfo = async () => {
+      const videoSettings = project.video_settings || {}
+      const background = videoSettings.background || "default"
+
+      console.log("🖼️ Resolving background for database storage:", background)
+
+      if (background.startsWith("saved-")) {
+        const savedId = background.substring(6)
+        if (savedId && savedId.trim() !== "") {
+          try {
+            const { data, error } = await supabase.from("backgrounds").select("url").eq("id", savedId).single()
+            if (!error && data && data.url) {
+              return { url: data.url, type: "saved" }
+            }
+          } catch (error) {
+            console.warn("⚠️ Error fetching saved background:", error)
+          }
+        }
+      }
+
+      if (background.startsWith("generated-")) {
+        const index = Number.parseInt(background.split("-")[1], 10)
+        const generatedUrl = videoSettings.customBackgrounds?.[index]
+        if (generatedUrl) {
+          return { url: generatedUrl, type: "generated" }
+        }
+      }
+
+      // Preset backgrounds
+      const backgroundMap: Record<string, string> = {
+        default: "/abstract-background.png",
+        nature: "/serene-mountain-lake.png",
+        city: "/vibrant-city-skyline.png",
+        space: "/space-stars.png",
+      }
+
+      const resolvedUrl = backgroundMap[background] || "/abstract-background.png"
+      return { url: resolvedUrl, type: "preset" }
+    }
+
+    const backgroundInfo = await getBackgroundInfo()
+
     // Save video record to database
     await supabase.from("generated_videos").insert({
       project_id: projectId,
@@ -75,8 +117,8 @@ export async function POST(request: NextRequest) {
       quality: quality || "1080p",
       duration: duration,
       size: videoFile.size,
-      background_url: project.background_url,
-      background_type: project.background_type,
+      background_url: backgroundInfo.url,
+      background_type: backgroundInfo.type,
     })
 
     // Update project status to completed
