@@ -1,6 +1,7 @@
 "use client"
 
 import type React from "react"
+import { upload } from "@vercel/blob/client"
 
 import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
@@ -145,33 +146,42 @@ export function BackgroundStep() {
     dispatch({ type: "SET_ERROR", error: null })
 
     try {
-      const formData = new FormData()
-      formData.append("file", file)
-      formData.append("type", "background")
-
-      const response = await fetch("/api/upload-background", {
-        method: "POST",
-        body: formData,
+      const blob = await upload(file.name, file, {
+        access: "public",
+        handleUploadUrl: "/api/background/upload",
       })
-
-      if (!response.ok) {
-        throw new Error("Upload failed")
-      }
-
-      const result = await response.json()
 
       // Add to saved backgrounds and select it
       const newBackground: SavedBackground = {
-        id: result.id,
-        name: result.filename,
-        url: result.url,
-        type: result.mime_type,
-        created_at: result.created_at,
+        id: crypto.randomUUID(), // Temporary ID until we refresh
+        name: file.name,
+        url: blob.url,
+        type: file.type,
+        created_at: new Date().toISOString(),
       }
 
       setSavedBackgrounds((prev) => [newBackground, ...prev])
-      setSelectedBackground(`saved-${result.id}`)
+      setSelectedBackground(`saved-${newBackground.id}`)
+
+      // Refresh saved backgrounds from database to get correct ID
+      const supabase = createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (user) {
+        const { data } = await supabase
+          .from("backgrounds")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(12)
+
+        if (data) {
+          setSavedBackgrounds(data)
+        }
+      }
     } catch (error) {
+      console.error("Upload error:", error)
       dispatch({ type: "SET_ERROR", error: "Failed to upload background. Please try again." })
     } finally {
       setIsUploading(false)

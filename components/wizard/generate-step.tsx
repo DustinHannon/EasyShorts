@@ -8,6 +8,7 @@ import { updateProject } from "@/lib/supabase/actions"
 import { Loader2, Play, Download, Share, RefreshCw } from "lucide-react"
 import { ClientVideoProcessor, type ProcessingProgress } from "@/lib/client-video-processor"
 import { createClient } from "@/lib/supabase/client"
+import { upload } from "@vercel/blob/client" // Import client upload function
 
 interface VideoProgress {
   progress: number
@@ -277,52 +278,33 @@ export function GenerateStep() {
       console.log("✅ Client-side video processing completed")
       setLocalVideoBlob(videoBlob)
 
-      console.log("📤 Starting video upload to server...")
-      setGenerationProgress({ progress: 85, stage: "uploading", message: "Uploading to cloud storage..." })
+      console.log("📤 Starting direct upload to Vercel Blob...")
+      setGenerationProgress({ progress: 85, stage: "uploading", message: "Uploading directly to cloud storage..." })
 
-      const formData = new FormData()
-      formData.append("video", videoBlob, `${state.project.id}.mp4`)
-      formData.append("projectId", state.project.id)
-      formData.append("quality", state.project.video_settings?.quality || "1080p")
-      formData.append("duration", "60")
+      const filename = `${state.project.id}_${Date.now()}.mp4`
 
-      console.log("📤 Upload payload prepared:", {
-        videoSize: videoBlob.size,
-        videoType: videoBlob.type,
-        projectId: state.project.id,
-      })
+      try {
+        const blob = await upload(filename, videoBlob, {
+          access: "public",
+          handleUploadUrl: "/api/video/upload",
+          clientPayload: JSON.stringify({
+            projectId: state.project.id,
+            quality: state.project.video_settings?.quality || "1080p",
+            duration: 60,
+          }),
+        })
 
-      const uploadResponse = await fetch("/api/upload-video", {
-        method: "POST",
-        body: formData,
-      })
+        console.log("✅ Direct upload completed successfully:", { url: blob.url, size: blob.size })
+        setGenerationProgress({ progress: 100, stage: "complete", message: "Video ready!" })
 
-      console.log("📤 Upload response received:", {
-        status: uploadResponse.status,
-        ok: uploadResponse.ok,
-      })
+        setVideoUrl(blob.url)
+        setIsComplete(true)
 
-      if (!uploadResponse.ok) {
-        const errorText = await uploadResponse.text()
-        console.error("❌ Upload failed:", errorText)
-        throw new Error(`Video upload failed (${uploadResponse.status}): ${errorText}`)
+        await updateProject(state.project.id, { status: "completed" })
+      } catch (uploadError) {
+        console.error("❌ Direct upload failed:", uploadError)
+        throw new Error(`Direct upload failed: ${uploadError instanceof Error ? uploadError.message : "Unknown error"}`)
       }
-
-      const responseData = await uploadResponse.json()
-      console.log("📤 Upload response data:", responseData)
-
-      const { videoUrl: finalVideoUrl } = responseData
-      if (!finalVideoUrl) {
-        throw new Error("No video URL returned from upload")
-      }
-
-      console.log("✅ Video upload completed successfully:", { finalVideoUrl })
-      setGenerationProgress({ progress: 100, stage: "complete", message: "Video ready!" })
-
-      setVideoUrl(finalVideoUrl)
-      setIsComplete(true)
-
-      await updateProject(state.project.id, { status: "completed" })
     } catch (error) {
       console.error("❌ Video generation process failed:", {
         error: error instanceof Error ? error.message : error,
@@ -338,6 +320,8 @@ export function GenerateStep() {
           errorMessage = `Audio Generation Error: ${error.message}`
         } else if (error.message.includes("Video processing failed")) {
           errorMessage = `Video Processing Error: ${error.message}`
+        } else if (error.message.includes("Direct upload failed")) {
+          errorMessage = `Upload Error: ${error.message}`
         } else if (error.message.includes("Missing required data")) {
           errorMessage = `Configuration Error: ${error.message}`
         } else {

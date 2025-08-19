@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { BackgroundActions } from "./background-actions"
 import { Search, Filter, Grid, List, Upload, X } from "lucide-react"
+import { upload } from "@vercel/blob/client"
 
 interface Background {
   id: string
@@ -103,41 +104,12 @@ export function BackgroundGallery({ backgrounds, onUpload }: BackgroundGalleryPr
 
     setIsUploading(true)
     try {
-      const formData = new FormData()
-      formData.append("file", file)
-      formData.append("type", "background")
-
-      const response = await fetch("/api/upload-background", {
-        method: "POST",
-        body: formData,
+      const blob = await upload(file.name, file, {
+        access: "public",
+        handleUploadUrl: "/api/background/upload",
       })
 
-      if (!response.ok) {
-        let errorMessage = "Upload failed"
-        try {
-          const contentType = response.headers.get("content-type")
-          if (contentType && contentType.includes("application/json")) {
-            const errorData = await response.json()
-            errorMessage = errorData.error || errorMessage
-          } else {
-            // If it's not JSON, get the text response
-            const errorText = await response.text()
-            console.error("Server returned non-JSON error:", errorText)
-            errorMessage = `Server error (${response.status})`
-          }
-        } catch (parseError) {
-          console.error("Error parsing error response:", parseError)
-        }
-        throw new Error(errorMessage)
-      }
-
-      const contentType = response.headers.get("content-type")
-      if (!contentType || !contentType.includes("application/json")) {
-        throw new Error("Server returned invalid response format")
-      }
-
-      const result = await response.json()
-      console.log("Background uploaded successfully:", result)
+      console.log("Background uploaded successfully:", blob)
 
       if (onUpload) {
         onUpload()
