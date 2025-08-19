@@ -2,9 +2,10 @@ import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Plus, Video, CheckCircle, GalleryThumbnailsIcon as Gallery } from "lucide-react"
+import { Plus, Video, CheckCircle, GalleryThumbnailsIcon as Gallery, LogOut } from "lucide-react"
 import Link from "next/link"
 import { ProjectCard } from "@/components/project-card"
+import { signOut } from "@/lib/actions"
 
 export default async function Dashboard() {
   const supabase = createClient()
@@ -62,6 +63,16 @@ export default async function Dashboard() {
                 New Project
               </Link>
             </Button>
+            <form action={signOut}>
+              <Button
+                type="submit"
+                variant="outline"
+                className="border-white/20 text-white hover:bg-red-500/20 hover:border-red-500/50 bg-transparent"
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                Logout
+              </Button>
+            </form>
           </div>
         </div>
 
