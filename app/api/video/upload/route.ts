@@ -4,6 +4,10 @@ import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
 
 export async function POST(request: Request): Promise<NextResponse> {
+  console.log("🚀 [v0] VIDEO UPLOAD ROUTE CALLED - This should appear when uploading!")
+  console.log("🚀 [v0] Request URL:", request.url)
+  console.log("🚀 [v0] Request method:", request.method)
+
   const body = (await request.json()) as HandleUploadBody
 
   try {

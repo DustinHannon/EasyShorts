@@ -14,6 +14,13 @@ export function GalleryContent({ initialVideos, initialBackgrounds }: GalleryCon
   const [backgrounds, setBackgrounds] = useState(initialBackgrounds)
 
   useEffect(() => {
+    console.log("[v0] Gallery Content - Initial Videos:", initialVideos)
+    console.log("[v0] Gallery Content - Videos count:", initialVideos?.length || 0)
+    console.log("[v0] Gallery Content - Initial Backgrounds:", initialBackgrounds)
+    console.log("[v0] Gallery Content - Backgrounds count:", initialBackgrounds?.length || 0)
+  }, [initialVideos, initialBackgrounds])
+
+  useEffect(() => {
     setBackgrounds(initialBackgrounds)
   }, [initialBackgrounds])
 
