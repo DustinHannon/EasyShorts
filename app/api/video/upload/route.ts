@@ -111,7 +111,7 @@ export async function POST(request: Request): Promise<NextResponse> {
           const backgroundInfo = await getBackgroundInfo()
 
           // Save video record to database
-          await supabase.from("generated_videos").insert({
+          console.log("💾 Attempting to save video metadata:", {
             project_id: projectId,
             user_id: userId,
             url: blob.url,
@@ -122,6 +122,28 @@ export async function POST(request: Request): Promise<NextResponse> {
             background_url: backgroundInfo.url,
             background_type: backgroundInfo.type,
           })
+
+          const { data: insertedVideo, error: insertError } = await supabase
+            .from("generated_videos")
+            .insert({
+              project_id: projectId,
+              user_id: userId,
+              url: blob.url,
+              format: "mp4",
+              quality: quality,
+              duration: duration,
+              size: blob.size,
+              background_url: backgroundInfo.url,
+              background_type: backgroundInfo.type,
+            })
+            .select()
+
+          if (insertError) {
+            console.error("❌ Database insert error:", insertError)
+            throw new Error(`Database insert failed: ${insertError.message}`)
+          }
+
+          console.log("✅ Video metadata saved successfully:", insertedVideo)
 
           // Update project status to completed
           await supabase
