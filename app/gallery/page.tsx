@@ -15,11 +15,15 @@ export default async function GalleryPage() {
     redirect("/auth/login")
   }
 
-  const { data: videosData } = await supabase
+  console.log("[v0] Gallery: Fetching data for user:", user.id)
+
+  const { data: videosData, error: videosError } = await supabase
     .from("generated_videos")
     .select("*")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
+
+  console.log("[v0] Gallery: Videos query result:", { videosData, videosError })
 
   const videos =
     videosData?.map((video) => {
@@ -39,11 +43,15 @@ export default async function GalleryPage() {
       }
     }) || []
 
-  const { data: backgroundsData } = await supabase
+  console.log("[v0] Gallery: Processed videos:", videos)
+
+  const { data: backgroundsData, error: backgroundsError } = await supabase
     .from("backgrounds")
     .select("*")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
+
+  console.log("[v0] Gallery: Backgrounds query result:", { backgroundsData, backgroundsError })
 
   const backgrounds =
     backgroundsData?.map((bg) => ({

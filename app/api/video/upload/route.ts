@@ -43,6 +43,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       },
       onUploadCompleted: async ({ blob, tokenPayload, clientPayload }) => {
         console.log("📤 Video upload completed:", blob.url)
+        console.log("[v0] Upload payload debug:", { tokenPayload, clientPayload })
 
         try {
           const tokenData = JSON.parse(tokenPayload || "{}")
@@ -53,12 +54,15 @@ export async function POST(request: Request): Promise<NextResponse> {
           const quality = clientData.quality || "1080p"
           const duration = clientData.duration || 60
 
+          console.log("[v0] Parsed upload data:", { userId, projectId, quality, duration })
+
           if (!userId || !projectId) {
             console.error("❌ Missing required payload data:", { userId, projectId })
             throw new Error("Missing required upload payload data")
           }
 
           // Get background info from project
+          console.log("[v0] Looking up project:", { projectId, userId })
           const { data: project, error: projectError } = await supabase
             .from("projects")
             .select("*")
@@ -66,8 +70,10 @@ export async function POST(request: Request): Promise<NextResponse> {
             .eq("user_id", userId)
             .single()
 
+          console.log("[v0] Project lookup result:", { project, projectError })
+
           if (projectError || !project) {
-            console.error("❌ Project not found:", { projectId, userId })
+            console.error("❌ Project not found:", { projectId, userId, projectError })
             throw new Error("Project not found")
           }
 
@@ -109,9 +115,10 @@ export async function POST(request: Request): Promise<NextResponse> {
           }
 
           const backgroundInfo = await getBackgroundInfo()
+          console.log("[v0] Background info resolved:", backgroundInfo)
 
           // Save video record to database
-          console.log("💾 Attempting to save video metadata:", {
+          const videoData = {
             project_id: projectId,
             user_id: userId,
             url: blob.url,
@@ -121,22 +128,16 @@ export async function POST(request: Request): Promise<NextResponse> {
             size: blob.size,
             background_url: backgroundInfo.url,
             background_type: backgroundInfo.type,
-          })
+          }
+
+          console.log("💾 Attempting to save video metadata:", videoData)
 
           const { data: insertedVideo, error: insertError } = await supabase
             .from("generated_videos")
-            .insert({
-              project_id: projectId,
-              user_id: userId,
-              url: blob.url,
-              format: "mp4",
-              quality: quality,
-              duration: duration,
-              size: blob.size,
-              background_url: backgroundInfo.url,
-              background_type: backgroundInfo.type,
-            })
+            .insert(videoData)
             .select()
+
+          console.log("[v0] Database insert result:", { insertedVideo, insertError })
 
           if (insertError) {
             console.error("❌ Database insert error:", insertError)
@@ -159,6 +160,7 @@ export async function POST(request: Request): Promise<NextResponse> {
           console.log("✅ Video metadata saved to database")
         } catch (error) {
           console.error("❌ Error saving video metadata:", error)
+          console.error("[v0] Full error details:", error)
           throw new Error("Could not save video metadata")
         }
       },

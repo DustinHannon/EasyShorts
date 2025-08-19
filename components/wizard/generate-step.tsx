@@ -5,10 +5,11 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useWizard } from "./wizard-provider"
 import { updateProject } from "@/lib/supabase/actions"
-import { Loader2, Play, Download, Share, RefreshCw } from "lucide-react"
+import { Loader2, Play, Download, Share, RefreshCw, CheckCircle } from "lucide-react"
 import { ClientVideoProcessor, type ProcessingProgress } from "@/lib/client-video-processor"
 import { createClient } from "@/lib/supabase/client"
 import { upload } from "@vercel/blob/client" // Import client upload function
+import { useRouter } from "next/navigation"
 
 interface VideoProgress {
   progress: number
@@ -18,6 +19,7 @@ interface VideoProgress {
 
 export function GenerateStep() {
   const { state, dispatch } = useWizard()
+  const router = useRouter()
   const [isGenerating, setIsGenerating] = useState(false)
   const [generationProgress, setGenerationProgress] = useState<ProcessingProgress>({
     progress: 0,
@@ -372,6 +374,10 @@ export function GenerateStep() {
     dispatch({ type: "SET_ERROR", error: null })
   }
 
+  const handleFinish = () => {
+    router.push("/dashboard")
+  }
+
   return (
     <Card className="bg-white/10 backdrop-blur-sm border-white/20">
       <CardHeader>
@@ -552,6 +558,15 @@ export function GenerateStep() {
               ) : (
                 "Generate Video"
               )}
+            </Button>
+          )}
+          {isComplete && (
+            <Button
+              onClick={handleFinish}
+              className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700"
+            >
+              <CheckCircle className="w-4 h-4 mr-2" />
+              Finish
             </Button>
           )}
         </div>
