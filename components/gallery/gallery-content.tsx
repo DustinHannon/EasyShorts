@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { VideoGallery } from "@/components/gallery/video-gallery"
 import { BackgroundGallery } from "@/components/gallery/background-gallery"
@@ -13,18 +13,11 @@ interface GalleryContentProps {
 export function GalleryContent({ initialVideos, initialBackgrounds }: GalleryContentProps) {
   const [backgrounds, setBackgrounds] = useState(initialBackgrounds)
 
-  const handleBackgroundUpload = async () => {
-    const response = await fetch("/api/backgrounds")
-    if (response.ok) {
-      const newBackgrounds = await response.json()
-      setBackgrounds(newBackgrounds)
-    } else {
-      // Fallback: reload the page
-      window.location.reload()
-    }
-  }
+  useEffect(() => {
+    setBackgrounds(initialBackgrounds)
+  }, [initialBackgrounds])
 
-  const handleBackgroundDelete = async () => {
+  const handleBackgroundUpload = async () => {
     const response = await fetch("/api/backgrounds")
     if (response.ok) {
       const newBackgrounds = await response.json()
@@ -51,11 +44,7 @@ export function GalleryContent({ initialVideos, initialBackgrounds }: GalleryCon
       </TabsContent>
 
       <TabsContent value="backgrounds">
-        <BackgroundGallery
-          backgrounds={backgrounds || []}
-          onUpload={handleBackgroundUpload}
-          onDelete={handleBackgroundDelete}
-        />
+        <BackgroundGallery backgrounds={backgrounds || []} onUpload={handleBackgroundUpload} />
       </TabsContent>
     </Tabs>
   )
