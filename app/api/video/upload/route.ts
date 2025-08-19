@@ -8,7 +8,11 @@ export async function POST(request: Request): Promise<NextResponse> {
   console.log("🚀 [v0] Request URL:", request.url)
   console.log("🚀 [v0] Request method:", request.method)
 
-  const body = (await request.json()) as HandleUploadBody
+  const requestText = await request.text()
+  console.log("🚀 [v0] Request body:", requestText)
+
+  // Parse the body from the text
+  const body = JSON.parse(requestText) as HandleUploadBody
 
   try {
     const cookieStore = cookies()
@@ -28,6 +32,8 @@ export async function POST(request: Request): Promise<NextResponse> {
       body,
       request,
       onBeforeGenerateToken: async (pathname: string) => {
+        console.log("🔑 [v0] onBeforeGenerateToken called for:", pathname)
+
         const {
           data: { user },
         } = await supabase.auth.getUser()
@@ -38,14 +44,16 @@ export async function POST(request: Request): Promise<NextResponse> {
 
         console.log("✅ User authenticated for video upload:", user.id)
 
+        const tokenPayload = JSON.stringify({ userId: user.id })
+        console.log("🔑 [v0] Returning token payload:", tokenPayload)
+
         return {
           allowedContentTypes: ["video/mp4"],
-          tokenPayload: JSON.stringify({
-            userId: user.id,
-          }),
+          tokenPayload,
         }
       },
       onUploadCompleted: async ({ blob, tokenPayload, clientPayload }) => {
+        console.log("🎉 [v0] onUploadCompleted callback triggered!")
         console.log("📤 Video upload completed:", blob.url)
         console.log("[v0] Upload payload debug:", { tokenPayload, clientPayload })
 
