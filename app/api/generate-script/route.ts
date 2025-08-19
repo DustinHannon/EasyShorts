@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
 
     console.log("🔍 DEBUG: Checking OpenAI API key")
     const apiKey = process.env.OPENAI_API_KEY
-    console.log("🔍 DEBUG: API key check", {
+    console.log("�� DEBUG: API key check", {
       hasApiKey: !!apiKey,
       apiKeyType: typeof apiKey,
       apiKeyLength: apiKey ? apiKey.length : 0,

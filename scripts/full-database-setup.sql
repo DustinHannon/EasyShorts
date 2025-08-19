@@ -1,6 +1,9 @@
--- Complete Database Setup for Video Creator App (Consolidated)
--- Run this entire script in Supabase SQL Editor
--- This script is safe to run multiple times and includes all migrations
+-- =============================================================================
+-- COMPLETE DATABASE SETUP FOR VIDEO CREATOR APP
+-- =============================================================================
+-- This script creates the entire database schema and can be run multiple times safely
+-- Combines all migrations and setup steps into one comprehensive script
+-- =============================================================================
 
 -- =============================================================================
 -- 1. USER PROFILES SETUP
@@ -163,7 +166,7 @@ EXCEPTION WHEN duplicate_object THEN
 END $$;
 
 -- =============================================================================
--- 4. GENERATED VIDEOS TABLE SETUP
+-- 4. GENERATED VIDEOS TABLE SETUP (WITH BACKGROUND SUPPORT)
 -- =============================================================================
 
 -- Create generated_videos table
@@ -178,6 +181,14 @@ CREATE TABLE IF NOT EXISTS public.generated_videos (
   size INTEGER,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Add background support columns to generated_videos table
+ALTER TABLE public.generated_videos 
+ADD COLUMN IF NOT EXISTS background_url TEXT,
+ADD COLUMN IF NOT EXISTS background_type TEXT;
+
+-- Add index for better query performance on background_url
+CREATE INDEX IF NOT EXISTS idx_generated_videos_background_url ON public.generated_videos(background_url);
 
 -- Fix project-video relationship to prevent cascade deletion
 -- Remove existing CASCADE constraint if it exists
@@ -199,6 +210,15 @@ SET user_id = p.user_id
 FROM public.projects p 
 WHERE generated_videos.project_id = p.id 
 AND generated_videos.user_id IS NULL;
+
+-- Update existing videos to have background info from their projects (if project still exists)
+UPDATE public.generated_videos 
+SET 
+  background_url = projects.background_url,
+  background_type = projects.background_type
+FROM public.projects 
+WHERE generated_videos.project_id = projects.id 
+  AND generated_videos.background_url IS NULL;
 
 -- Enable RLS on generated_videos
 ALTER TABLE public.generated_videos ENABLE ROW LEVEL SECURITY;
@@ -255,20 +275,34 @@ EXCEPTION WHEN unique_violation THEN
 END $$;
 
 -- =============================================================================
+-- 6. ADDITIONAL INDEXES FOR PERFORMANCE
+-- =============================================================================
+
+-- Create additional indexes for better query performance
+CREATE INDEX IF NOT EXISTS idx_projects_user_id ON public.projects(user_id);
+CREATE INDEX IF NOT EXISTS idx_projects_status ON public.projects(status);
+CREATE INDEX IF NOT EXISTS idx_backgrounds_user_id ON public.backgrounds(user_id);
+CREATE INDEX IF NOT EXISTS idx_backgrounds_type ON public.backgrounds(type);
+CREATE INDEX IF NOT EXISTS idx_generated_videos_user_id ON public.generated_videos(user_id);
+CREATE INDEX IF NOT EXISTS idx_generated_videos_project_id ON public.generated_videos(project_id);
+
+-- =============================================================================
 -- SETUP COMPLETE
 -- =============================================================================
+
+-- This consolidated script includes:
+-- ✅ User profiles with RLS policies and triggers
+-- ✅ Projects table with progress tracking columns
+-- ✅ Backgrounds table with RLS policies  
+-- ✅ Generated videos table with background support columns and fixed project relationship
+-- ✅ Storage buckets for file uploads
+-- ✅ All policies and constraints with proper error handling
+-- ✅ Performance indexes for all major query patterns
+-- ✅ Safe to run multiple times (fully idempotent)
+-- ✅ Combines all previous migration scripts into one comprehensive setup
 
 -- Note: Storage policies need to be set up manually in Supabase Dashboard
 -- Go to Storage > Policies and create policies for each bucket to allow:
 -- - Authenticated users to upload files to their own folders
 -- - Authenticated users to view/download their own files
 -- - Authenticated users to delete their own files
-
--- This consolidated script includes:
--- ✅ User profiles with RLS policies
--- ✅ Projects table with progress tracking columns
--- ✅ Backgrounds table with RLS policies  
--- ✅ Generated videos table with fixed project relationship (no cascade deletion)
--- ✅ Storage buckets for file uploads
--- ✅ All policies and constraints with proper error handling
--- ✅ Safe to run multiple times (idempotent)

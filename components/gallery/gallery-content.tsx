@@ -24,6 +24,17 @@ export function GalleryContent({ initialVideos, initialBackgrounds }: GalleryCon
     }
   }
 
+  const handleBackgroundDelete = async () => {
+    const response = await fetch("/api/backgrounds")
+    if (response.ok) {
+      const newBackgrounds = await response.json()
+      setBackgrounds(newBackgrounds)
+    } else {
+      // Fallback: reload the page
+      window.location.reload()
+    }
+  }
+
   return (
     <Tabs defaultValue="videos" className="space-y-6">
       <TabsList className="bg-white/10 border-white/20">
@@ -40,7 +51,11 @@ export function GalleryContent({ initialVideos, initialBackgrounds }: GalleryCon
       </TabsContent>
 
       <TabsContent value="backgrounds">
-        <BackgroundGallery backgrounds={backgrounds || []} onUpload={handleBackgroundUpload} />
+        <BackgroundGallery
+          backgrounds={backgrounds || []}
+          onUpload={handleBackgroundUpload}
+          onDelete={handleBackgroundDelete}
+        />
       </TabsContent>
     </Tabs>
   )

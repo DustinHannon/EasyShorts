@@ -23,9 +23,10 @@ interface Background {
 interface BackgroundGalleryProps {
   backgrounds: Background[]
   onUpload?: () => void
+  onDelete?: () => void // Added callback for deletion
 }
 
-export function BackgroundGallery({ backgrounds, onUpload }: BackgroundGalleryProps) {
+export function BackgroundGallery({ backgrounds, onUpload, onDelete }: BackgroundGalleryProps) {
   const [searchTerm, setSearchTerm] = useState("")
   const [sortBy, setSortBy] = useState("newest")
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
@@ -302,7 +303,7 @@ export function BackgroundGallery({ backgrounds, onUpload }: BackgroundGalleryPr
                           </Badge>
                         )}
                       </div>
-                      <BackgroundActions background={background} />
+                      <BackgroundActions background={background} onDelete={onDelete} />
                     </div>
                     <p className="text-gray-400 text-xs">{formatFileSize(background.file_size)}</p>
                   </div>
@@ -345,7 +346,7 @@ export function BackgroundGallery({ backgrounds, onUpload }: BackgroundGalleryPr
                       <span>{new Date(background.created_at).toLocaleDateString()}</span>
                     </div>
                   </div>
-                  <BackgroundActions background={background} />
+                  <BackgroundActions background={background} onDelete={onDelete} />
                 </div>
               </CardContent>
             </Card>

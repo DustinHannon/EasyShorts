@@ -17,9 +17,10 @@ interface Background {
 
 interface BackgroundActionsProps {
   background: Background
+  onDelete?: () => void // Added callback for deletion
 }
 
-export function BackgroundActions({ background }: BackgroundActionsProps) {
+export function BackgroundActions({ background, onDelete }: BackgroundActionsProps) {
   const [isPending, startTransition] = useTransition()
 
   const handleDownload = () => {
@@ -52,6 +53,9 @@ export function BackgroundActions({ background }: BackgroundActionsProps) {
             title: "Background deleted",
             description: "The background has been successfully deleted",
           })
+          if (onDelete) {
+            onDelete()
+          }
         } catch (error) {
           toast({
             title: "Error",
