@@ -17,22 +17,14 @@ export default async function GalleryPage() {
 
   const { data: videosData } = await supabase
     .from("generated_videos")
-    .select(`
-      *,
-      projects (
-        title,
-        description,
-        status
-      )
-    `)
+    .select("*")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
 
   const videos =
     videosData?.map((video) => {
-      const projectTitle = video.projects?.title
       const fallbackTitle = `Video-${video.created_at.split("T")[0]}`
-      const filename = `${projectTitle || fallbackTitle}.${video.format || "mp4"}`
+      const filename = `${fallbackTitle}.${video.format || "mp4"}`
 
       return {
         id: video.id,
@@ -44,7 +36,6 @@ export default async function GalleryPage() {
         created_at: video.created_at,
         background_url: video.background_url,
         background_type: video.background_type,
-        projects: video.projects,
       }
     }) || []
 

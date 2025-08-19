@@ -284,6 +284,18 @@ export function GenerateStep() {
       const filename = `${state.project.id}_${Date.now()}.mp4`
 
       try {
+        console.log("[v0] 🚀 Starting client upload with:", {
+          filename,
+          blobSize: videoBlob.size,
+          blobType: videoBlob.type,
+          handleUploadUrl: "/api/video/upload",
+          clientPayload: {
+            projectId: state.project.id,
+            quality: state.project.video_settings?.quality || "1080p",
+            duration: 60,
+          },
+        })
+
         const blob = await upload(filename, videoBlob, {
           access: "public",
           handleUploadUrl: "/api/video/upload",
@@ -294,7 +306,7 @@ export function GenerateStep() {
           }),
         })
 
-        console.log("✅ Direct upload completed successfully:", { url: blob.url, size: blob.size })
+        console.log("[v0] ✅ Client upload completed successfully:", { url: blob.url, size: blob.size })
         setGenerationProgress({ progress: 100, stage: "complete", message: "Video ready!" })
 
         setVideoUrl(blob.url)
@@ -302,7 +314,13 @@ export function GenerateStep() {
 
         await updateProject(state.project.id, { status: "completed" })
       } catch (uploadError) {
-        console.error("❌ Direct upload failed:", uploadError)
+        console.error("[v0] ❌ Client upload failed with error:", {
+          error: uploadError,
+          message: uploadError instanceof Error ? uploadError.message : "Unknown error",
+          stack: uploadError instanceof Error ? uploadError.stack : undefined,
+          filename,
+          blobSize: videoBlob.size,
+        })
         throw new Error(`Direct upload failed: ${uploadError instanceof Error ? uploadError.message : "Unknown error"}`)
       }
     } catch (error) {
