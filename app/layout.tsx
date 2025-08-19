@@ -8,8 +8,8 @@ import { inter, playfair } from "@/fonts"
 import type { Metadata } from "next"
 
 export const metadata: Metadata = {
-  title: "ShortsGen - AI Video Creator",
-  description: "Create engaging TikTok and YouTube Shorts with AI",
+  title: "EasyShorts - Faceless Video Creator",
+  description: "Create engaging faceless TikTok and YouTube Shorts with AI",
   generator: "v0.app",
   icons: {
     icon: "/favicon.ico",

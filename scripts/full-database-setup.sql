@@ -249,33 +249,7 @@ EXCEPTION WHEN duplicate_object THEN
 END $$;
 
 -- =============================================================================
--- 5. STORAGE BUCKETS SETUP
--- =============================================================================
-
--- Create storage buckets for file uploads (with error handling)
-DO $$ 
-BEGIN
-  INSERT INTO storage.buckets (id, name, public) VALUES ('backgrounds', 'backgrounds', false);
-EXCEPTION WHEN unique_violation THEN
-  NULL; -- Bucket already exists, ignore
-END $$;
-
-DO $$ 
-BEGIN
-  INSERT INTO storage.buckets (id, name, public) VALUES ('videos', 'videos', false);
-EXCEPTION WHEN unique_violation THEN
-  NULL; -- Bucket already exists, ignore
-END $$;
-
-DO $$ 
-BEGIN
-  INSERT INTO storage.buckets (id, name, public) VALUES ('audio', 'audio', false);
-EXCEPTION WHEN unique_violation THEN
-  NULL; -- Bucket already exists, ignore
-END $$;
-
--- =============================================================================
--- 6. ADDITIONAL INDEXES FOR PERFORMANCE
+-- 5. ADDITIONAL INDEXES FOR PERFORMANCE
 -- =============================================================================
 
 -- Create additional indexes for better query performance
@@ -295,14 +269,7 @@ CREATE INDEX IF NOT EXISTS idx_generated_videos_project_id ON public.generated_v
 -- ✅ Projects table with progress tracking columns
 -- ✅ Backgrounds table with RLS policies  
 -- ✅ Generated videos table with background support columns and fixed project relationship
--- ✅ Storage buckets for file uploads
 -- ✅ All policies and constraints with proper error handling
 -- ✅ Performance indexes for all major query patterns
 -- ✅ Safe to run multiple times (fully idempotent)
 -- ✅ Combines all previous migration scripts into one comprehensive setup
-
--- Note: Storage policies need to be set up manually in Supabase Dashboard
--- Go to Storage > Policies and create policies for each bucket to allow:
--- - Authenticated users to upload files to their own folders
--- - Authenticated users to view/download their own files
--- - Authenticated users to delete their own files
