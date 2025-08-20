@@ -309,6 +309,7 @@ export function GenerateStep() {
         })
 
         console.log("[v0] ✅ Client upload completed successfully:", { url: blob.url, size: blob.size })
+
         setGenerationProgress({ progress: 100, stage: "complete", message: "Video ready!" })
 
         setVideoUrl(blob.url)

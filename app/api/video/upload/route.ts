@@ -4,15 +4,7 @@ import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
 
 export async function POST(request: Request): Promise<NextResponse> {
-  console.log("🚀 [v0] VIDEO UPLOAD ROUTE CALLED - This should appear when uploading!")
-  console.log("🚀 [v0] Request URL:", request.url)
-  console.log("🚀 [v0] Request method:", request.method)
-
-  const requestText = await request.text()
-  console.log("🚀 [v0] Request body:", requestText)
-
-  // Parse the body from the text
-  const body = JSON.parse(requestText) as HandleUploadBody
+  const body = (await request.json()) as HandleUploadBody
 
   try {
     const cookieStore = cookies()
@@ -28,159 +20,84 @@ export async function POST(request: Request): Promise<NextResponse> {
       },
     )
 
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
     const jsonResponse = await handleUpload({
       body,
       request,
-      onBeforeGenerateToken: async (pathname: string) => {
-        console.log("🔑 [v0] onBeforeGenerateToken called for:", pathname)
-
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
-
-        if (!user) {
-          throw new Error("Not authorized - user not authenticated")
-        }
-
-        console.log("✅ User authenticated for video upload:", user.id)
-
-        const tokenPayload = JSON.stringify({ userId: user.id })
-        console.log("🔑 [v0] Returning token payload:", tokenPayload)
-
+      onBeforeGenerateToken: async (pathname: string, clientPayload) => {
         return {
           allowedContentTypes: ["video/mp4"],
-          tokenPayload,
+          tokenPayload: JSON.stringify({
+            userId: user.id,
+            uploadType: "video",
+          }),
         }
       },
       onUploadCompleted: async ({ blob, tokenPayload, clientPayload }) => {
-        console.log("🎉 [v0] onUploadCompleted callback triggered!")
-        console.log("📤 Video upload completed:", blob.url)
-        console.log("[v0] Upload payload debug:", { tokenPayload, clientPayload })
-
         try {
           const tokenData = JSON.parse(tokenPayload || "{}")
-          const userId = tokenData.userId
-
           const clientData = JSON.parse(clientPayload || "{}")
-          const projectId = clientData.projectId
-          const quality = clientData.quality || "1080p"
-          const duration = clientData.duration || 60
 
-          console.log("[v0] Parsed upload data:", { userId, projectId, quality, duration })
+          let backgroundUrl = null
+          let backgroundType = null
 
-          if (!userId || !projectId) {
-            console.error("❌ Missing required payload data:", { userId, projectId })
-            throw new Error("Missing required upload payload data")
-          }
+          if (clientData.projectId) {
+            const { data: project } = await supabase
+              .from("projects")
+              .select("video_settings")
+              .eq("id", clientData.projectId)
+              .single()
 
-          // Get background info from project
-          console.log("[v0] Looking up project:", { projectId, userId })
-          const { data: project, error: projectError } = await supabase
-            .from("projects")
-            .select("*")
-            .eq("id", projectId)
-            .eq("user_id", userId)
-            .single()
-
-          console.log("[v0] Project lookup result:", { project, projectError })
-
-          if (projectError || !project) {
-            console.error("❌ Project not found:", { projectId, userId, projectError })
-            throw new Error("Project not found")
-          }
-
-          const getBackgroundInfo = async () => {
-            const videoSettings = project.video_settings || {}
-            const background = videoSettings.background || "default"
-
-            if (background.startsWith("saved-")) {
-              const savedId = background.substring(6)
-              if (savedId && savedId.trim() !== "") {
-                try {
-                  const { data, error } = await supabase.from("backgrounds").select("url").eq("id", savedId).single()
-                  if (!error && data && data.url) {
-                    return { url: data.url, type: "saved" }
-                  }
-                } catch (error) {
-                  console.warn("⚠️ Error fetching saved background:", error)
-                }
+            if (project?.video_settings?.background) {
+              const background = project.video_settings.background
+              if (background.type === "preset") {
+                backgroundUrl = `/backgrounds/${background.value}.jpg`
+                backgroundType = "preset"
+              } else if (background.type === "upload" && background.url) {
+                backgroundUrl = background.url
+                backgroundType = "upload"
+              } else if (background.type === "generated" && background.url) {
+                backgroundUrl = background.url
+                backgroundType = "generated"
               }
             }
-
-            if (background.startsWith("generated-")) {
-              const index = Number.parseInt(background.split("-")[1], 10)
-              const generatedUrl = videoSettings.customBackgrounds?.[index]
-              if (generatedUrl) {
-                return { url: generatedUrl, type: "generated" }
-              }
-            }
-
-            const backgroundMap: Record<string, string> = {
-              default: "/abstract-background.png",
-              nature: "/serene-mountain-lake.png",
-              city: "/vibrant-city-skyline.png",
-              space: "/space-stars.png",
-            }
-
-            const resolvedUrl = backgroundMap[background] || "/abstract-background.png"
-            return { url: resolvedUrl, type: "preset" }
           }
 
-          const backgroundInfo = await getBackgroundInfo()
-          console.log("[v0] Background info resolved:", backgroundInfo)
-
-          // Save video record to database
-          const videoData = {
-            project_id: projectId,
-            user_id: userId,
+          const { error: dbError } = await supabase.from("generated_videos").insert({
+            user_id: tokenData.userId,
             url: blob.url,
             format: "mp4",
-            quality: quality,
-            duration: duration,
+            quality: clientData.quality || "1080p",
+            duration: clientData.duration || 60,
             size: blob.size,
-            background_url: backgroundInfo.url,
-            background_type: backgroundInfo.type,
+            project_id: clientData.projectId,
+            background_url: backgroundUrl,
+            background_type: backgroundType,
+          })
+
+          if (dbError) {
+            console.error("Database error:", dbError)
+            throw new Error("Failed to save video metadata")
           }
 
-          console.log("💾 Attempting to save video metadata:", videoData)
-
-          const { data: insertedVideo, error: insertError } = await supabase
-            .from("generated_videos")
-            .insert(videoData)
-            .select()
-
-          console.log("[v0] Database insert result:", { insertedVideo, insertError })
-
-          if (insertError) {
-            console.error("❌ Database insert error:", insertError)
-            throw new Error(`Database insert failed: ${insertError.message}`)
-          }
-
-          console.log("✅ Video metadata saved successfully:", insertedVideo)
-
-          // Update project status to completed
-          await supabase
-            .from("projects")
-            .update({
-              status: "completed",
-              progress: 100,
-              progress_stage: "complete",
-              progress_message: "Video created successfully!",
-            })
-            .eq("id", projectId)
-
-          console.log("✅ Video metadata saved to database")
+          console.log("✅ Video metadata saved successfully")
         } catch (error) {
-          console.error("❌ Error saving video metadata:", error)
-          console.error("[v0] Full error details:", error)
-          throw new Error("Could not save video metadata")
+          console.error("Error in onUploadCompleted:", error)
+          throw error
         }
       },
     })
 
     return NextResponse.json(jsonResponse)
   } catch (error) {
-    console.error("❌ Client upload error:", error)
-    return NextResponse.json({ error: (error as Error).message }, { status: 400 })
+    console.error("Video upload error:", error)
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Upload failed" }, { status: 400 })
   }
 }
