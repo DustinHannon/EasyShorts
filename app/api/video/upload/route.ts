@@ -1,4 +1,4 @@
-import { handleUpload, type HandleUploadBody } from "@vercel/blob"
+import { handleUpload, type HandleUploadBody } from "@vercel/blob/client"
 import { NextResponse } from "next/server"
 import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
@@ -22,9 +22,9 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     const {
       data: { user },
+      error: authError,
     } = await supabase.auth.getUser()
-
-    if (!user) {
+    if (authError || !user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
@@ -36,27 +36,68 @@ export async function POST(request: Request): Promise<NextResponse> {
           allowedContentTypes: ["video/mp4"],
           tokenPayload: JSON.stringify({
             userId: user.id,
+            uploadType: "video",
           }),
         }
       },
       onUploadCompleted: async ({ blob, tokenPayload, clientPayload }) => {
-        const tokenData = JSON.parse(tokenPayload || "{}")
-        const clientData = JSON.parse(clientPayload || "{}")
+        try {
+          const tokenData = JSON.parse(tokenPayload || "{}")
+          const clientData = JSON.parse(clientPayload || "{}")
 
-        await supabase.from("generated_videos").insert({
-          user_id: tokenData.userId,
-          url: blob.url,
-          format: "mp4",
-          quality: clientData.quality || "1080p",
-          duration: clientData.duration || 60,
-          size: blob.size,
-          project_id: clientData.projectId,
-        })
+          let backgroundUrl = null
+          let backgroundType = null
+
+          if (clientData.projectId) {
+            const { data: project } = await supabase
+              .from("projects")
+              .select("video_settings")
+              .eq("id", clientData.projectId)
+              .single()
+
+            if (project?.video_settings?.background) {
+              const background = project.video_settings.background
+              if (background.type === "preset") {
+                backgroundUrl = `/backgrounds/${background.value}.jpg`
+                backgroundType = "preset"
+              } else if (background.type === "upload" && background.url) {
+                backgroundUrl = background.url
+                backgroundType = "upload"
+              } else if (background.type === "generated" && background.url) {
+                backgroundUrl = background.url
+                backgroundType = "generated"
+              }
+            }
+          }
+
+          const { error: dbError } = await supabase.from("generated_videos").insert({
+            user_id: tokenData.userId,
+            url: blob.url,
+            format: "mp4",
+            quality: clientData.quality || "1080p",
+            duration: clientData.duration || 60,
+            size: blob.size,
+            project_id: clientData.projectId,
+            background_url: backgroundUrl,
+            background_type: backgroundType,
+          })
+
+          if (dbError) {
+            console.error("Database error:", dbError)
+            throw new Error("Failed to save video metadata")
+          }
+
+          console.log("✅ Video metadata saved successfully")
+        } catch (error) {
+          console.error("Error in onUploadCompleted:", error)
+          throw error
+        }
       },
     })
 
     return NextResponse.json(jsonResponse)
   } catch (error) {
-    return NextResponse.json({ error: "Upload failed" }, { status: 400 })
+    console.error("Video upload error:", error)
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Upload failed" }, { status: 400 })
   }
 }
