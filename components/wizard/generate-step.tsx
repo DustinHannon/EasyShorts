@@ -298,9 +298,22 @@ export function GenerateStep() {
           },
         })
 
+        const supabase = createClient()
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+
+        if (!user) {
+          throw new Error("User not authenticated")
+        }
+
         const blob = await upload(filename, videoBlob, {
           access: "public",
           handleUploadUrl: "/api/video/upload",
+          tokenPayload: JSON.stringify({
+            userId: user.id,
+            uploadType: "video",
+          }),
           clientPayload: JSON.stringify({
             projectId: state.project.id,
             quality: state.project.video_settings?.quality || "1080p",

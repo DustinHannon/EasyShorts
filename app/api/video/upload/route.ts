@@ -1,4 +1,4 @@
-import { handleUpload, type HandleUploadBody } from "@vercel/blob/client"
+import { handleUpload, type HandleUploadBody } from "@vercel/blob"
 import { NextResponse } from "next/server"
 import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
@@ -42,7 +42,15 @@ export async function POST(request: Request): Promise<NextResponse> {
       },
       onUploadCompleted: async ({ blob, tokenPayload, clientPayload }) => {
         try {
-          const tokenData = JSON.parse(tokenPayload || "{}")
+          const {
+            data: { user },
+          } = await supabase.auth.getUser()
+          const cookieUserId = user?.id ?? null
+
+          const tokenData = tokenPayload ? JSON.parse(tokenPayload) : {}
+          const userId = cookieUserId || tokenData.userId
+          if (!userId) throw new Error("Missing user id for video insert")
+
           const clientData = JSON.parse(clientPayload || "{}")
 
           let backgroundUrl = null
@@ -71,7 +79,7 @@ export async function POST(request: Request): Promise<NextResponse> {
           }
 
           const { error: dbError } = await supabase.from("generated_videos").insert({
-            user_id: tokenData.userId,
+            user_id: userId,
             url: blob.url,
             format: "mp4",
             quality: clientData.quality || "1080p",
