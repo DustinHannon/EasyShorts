@@ -310,6 +310,29 @@ export function GenerateStep() {
 
         console.log("[v0] ✅ Client upload completed successfully:", { url: blob.url, size: blob.size })
 
+        console.log("[v0] 📝 Recording video metadata to database...")
+        setGenerationProgress({ progress: 95, stage: "recording", message: "Saving video to gallery..." })
+
+        const recordResponse = await fetch("/api/video/record", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            url: blob.url,
+            size: blob.size,
+            projectId: state.project.id,
+            quality: state.project.video_settings?.quality || "1080p",
+            duration: 60,
+          }),
+        })
+
+        if (!recordResponse.ok) {
+          const errorText = await recordResponse.text()
+          console.error("[v0] ❌ Failed to record video metadata:", errorText)
+          throw new Error(`Failed to save video to gallery: ${errorText}`)
+        }
+
+        console.log("[v0] ✅ Video metadata recorded successfully")
+
         setGenerationProgress({ progress: 100, stage: "complete", message: "Video ready!" })
 
         setVideoUrl(blob.url)
@@ -445,16 +468,25 @@ export function GenerateStep() {
               </div>
             </div>
             <div className="text-sm text-gray-400">
-              {generationProgress.stage === "starting" && "Step 1 of 6: Initializing video processor..."}
-              {generationProgress.stage === "audio" && "Step 2 of 6: Generating audio track..."}
-              {generationProgress.stage === "initializing" && "Step 3 of 6: Loading video processing tools..."}
-              {generationProgress.stage === "preparing" && "Step 4 of 6: Downloading and preparing assets..."}
-              {generationProgress.stage === "captions" && "Step 5 of 6: Creating captions with font..."}
-              {generationProgress.stage === "processing" && "Step 6 of 6: Rendering final video..."}
-              {generationProgress.stage === "uploading" && "Final Step: Uploading to cloud storage..."}
-              {!["starting", "audio", "initializing", "preparing", "captions", "processing", "uploading"].includes(
-                generationProgress.stage,
-              ) && `Stage: ${generationProgress.stage} • Processing video in your browser using WebAssembly.`}
+              {generationProgress.stage === "starting" && "Step 1 of 7: Initializing video processor..."}
+              {generationProgress.stage === "audio" && "Step 2 of 7: Generating audio track..."}
+              {generationProgress.stage === "initializing" && "Step 3 of 7: Loading video processing tools..."}
+              {generationProgress.stage === "preparing" && "Step 4 of 7: Downloading and preparing assets..."}
+              {generationProgress.stage === "captions" && "Step 5 of 7: Creating captions with font..."}
+              {generationProgress.stage === "processing" && "Step 6 of 7: Rendering final video..."}
+              {generationProgress.stage === "uploading" && "Step 7 of 7: Uploading to cloud storage..."}
+              {generationProgress.stage === "recording" && "Final Step: Saving to your gallery..."}
+              {![
+                "starting",
+                "audio",
+                "initializing",
+                "preparing",
+                "captions",
+                "processing",
+                "uploading",
+                "recording",
+              ].includes(generationProgress.stage) &&
+                `Stage: ${generationProgress.stage} • Processing video in your browser using WebAssembly.`}
             </div>
           </div>
         )}

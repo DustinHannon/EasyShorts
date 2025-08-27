@@ -74,58 +74,9 @@ export async function POST(request: NextRequest) {
       },
 
       onUploadCompleted: async ({ blob, tokenPayload }) => {
-        // Only attempt DB write when the upload fully finishes
-        // If the generation fails, your client should not call upload at all
-        try {
-          const payload = tokenPayload ? JSON.parse(tokenPayload) : {}
-          const uid: string | undefined = payload.userId
-          if (!uid) throw new Error("Missing userId in token payload")
-
-          // Optional: derive project settings here if you need them
-          let backgroundUrl: string | null = null
-          let backgroundType: string | null = null
-
-          if (payload.projectId) {
-            const { data: project, error: projErr } = await supabase
-              .from("projects")
-              .select("video_settings")
-              .eq("id", payload.projectId)
-              .single()
-
-            if (!projErr && project?.video_settings?.background) {
-              const bg = project.video_settings.background
-              if (bg.type === "preset" && bg.value) {
-                backgroundUrl = `/backgrounds/${bg.value}.jpg`
-                backgroundType = "preset"
-              } else if ((bg.type === "upload" || bg.type === "generated") && bg.url) {
-                backgroundUrl = bg.url
-                backgroundType = bg.type
-              }
-            }
-          }
-
-          const { error: dbError } = await supabase.from("generated_videos").insert({
-            user_id: uid,
-            url: blob.url,
-            format: "mp4",
-            quality: payload.quality ?? "1080p",
-            duration: payload.duration ?? 60,
-            size: blob.size,
-            project_id: payload.projectId ?? null,
-            background_url: backgroundUrl,
-            background_type: backgroundType,
-          })
-
-          if (dbError) {
-            // Log server-side so the client still gets a 200 for the token step
-            console.error("Video insert error:", dbError)
-            // Rethrow so it shows up in logs
-            throw dbError
-          }
-        } catch (e) {
-          console.error("onUploadCompleted error:", e)
-          // Swallow here so token flow is not broken. The upload has already succeeded.
-        }
+        // Database insert moved to separate authenticated route
+        // This callback now only handles upload completion
+        console.log("Upload completed:", blob.url)
       },
     })
 
