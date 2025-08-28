@@ -318,7 +318,7 @@ export function GenerateStep() {
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             url: blob.url,
-            size: blob.size,
+            size: videoBlob.size, // Use original blob size instead of upload response size
             projectId: state.project.id,
             quality: state.project.video_settings?.quality || "1080p",
             duration: 60,
