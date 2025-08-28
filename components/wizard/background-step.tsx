@@ -55,7 +55,7 @@ export function BackgroundStep() {
             .select("*")
             .eq("user_id", user.id)
             .order("created_at", { ascending: false })
-            .limit(12) // Limit to recent backgrounds
+            .limit(12) // Limit to recent backgrounds only
 
           if (!error && data) {
             setSavedBackgrounds(data)
