@@ -6,9 +6,13 @@ export const runtime = "nodejs"
 
 export async function POST(req: NextRequest) {
   try {
-    const { url, size, projectId, quality, duration, background } = await req.json()
+    const body = await req.json()
+    console.log("[v0] Record route received data:", body)
+
+    const { url, size, projectId, quality, duration, background } = body
 
     if (!url || !size) {
+      console.log("[v0] Missing required fields:", { url: !!url, size: !!size, receivedKeys: Object.keys(body) })
       return NextResponse.json({ error: "Missing url or size" }, { status: 400 })
     }
 
@@ -82,6 +86,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true })
   } catch (e: any) {
+    console.error("[v0] Record route error:", e)
     return NextResponse.json({ error: e?.message ?? "Bad request" }, { status: 400 })
   }
 }
