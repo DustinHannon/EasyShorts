@@ -6,7 +6,7 @@ import { del } from "@vercel/blob"
 
 // Project management actions
 export async function createProject(title: string, description?: string) {
-  const supabase = createClient()
+  const supabase = await createClient()
 
   const {
     data: { user },
@@ -47,7 +47,7 @@ export async function updateProject(
     status?: string
   },
 ) {
-  const supabase = createClient()
+  const supabase = await createClient()
 
   const {
     data: { user },
@@ -70,7 +70,7 @@ export async function updateProject(
 }
 
 export async function deleteProject(projectId: string) {
-  const supabase = createClient()
+  const supabase = await createClient()
 
   const {
     data: { user },
@@ -86,7 +86,7 @@ export async function deleteProject(projectId: string) {
 
 // Background management actions
 export async function deleteBackground(backgroundId: string) {
-  const supabase = createClient()
+  const supabase = await createClient()
 
   const {
     data: { user },
@@ -120,7 +120,7 @@ export async function deleteBackground(backgroundId: string) {
 
 // Video management actions
 export async function deleteVideo(videoId: string) {
-  const supabase = createClient()
+  const supabase = await createClient()
 
   const {
     data: { user },

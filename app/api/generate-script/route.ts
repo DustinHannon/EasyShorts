@@ -6,7 +6,7 @@ export async function POST(request: NextRequest) {
   try {
     console.log("🔍 DEBUG: Starting script generation request")
 
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
     console.log("🔍 DEBUG: Got cookie store")
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL

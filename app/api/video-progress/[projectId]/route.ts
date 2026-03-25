@@ -4,7 +4,7 @@ import { cookies } from "next/headers"
 
 export async function GET(request: NextRequest, { params }: { params: { projectId: string } }) {
   try {
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -56,7 +56,7 @@ export async function GET(request: NextRequest, { params }: { params: { projectI
 // Helper function to update progress in database
 export async function updateProgress(projectId: string, progress: number, stage: string, message: string) {
   try {
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,

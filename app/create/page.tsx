@@ -5,7 +5,7 @@ import { WizardLayout } from "@/components/wizard/wizard-layout"
 import { ProjectSetupStep } from "@/components/wizard/project-setup-step"
 
 export default async function CreatePage() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
