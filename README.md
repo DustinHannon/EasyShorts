@@ -11,7 +11,7 @@ EasyShorts is an AI-powered video creation platform that transforms text ideas i
 
 ## How It Works
 
-1. **Script Generation**: AI generates engaging scripts optimized for short-form content using GPT-4o
+1. **Script Generation**: AI generates engaging scripts optimized for short-form content using GPT-5.4
 2. **Voice Synthesis**: Converts scripts to natural-sounding speech with multiple voice options
 3. **Background Selection**: Users can upload custom backgrounds or generate AI images
 4. **Video Assembly**: Client-side FFmpeg processing combines audio, background, and captions into final video
@@ -22,7 +22,7 @@ EasyShorts is an AI-powered video creation platform that transforms text ideas i
 - **Framework**: Next.js 16 with App Router, React 19, TypeScript
 - **Database & Auth**: Supabase (PostgreSQL + Auth + RLS)
 - **File Storage**: Vercel Blob
-- **AI**: Azure AI Foundry (GPT-4o for scripts, TTS for voice, gpt-image-1.5 for images)
+- **AI**: Azure AI Foundry (GPT-5.4 for scripts, gpt-4o-mini-tts for voice, gpt-image-1.5 for images)
 - **Video Processing**: FFmpeg.wasm (client-side)
 - **UI**: Tailwind CSS, Radix UI, shadcn/ui
 - **Hosting**: Vercel
@@ -74,8 +74,8 @@ This creates 4 tables with RLS policies: `profiles`, `projects`, `backgrounds`, 
 
 ## Key Features
 
-- **AI Script Generation** - Context-aware content creation with GPT-4o
-- **Multi-voice TTS** - Natural speech synthesis via Azure AI TTS
+- **AI Script Generation** - Context-aware content creation with GPT-5.4
+- **Multi-voice TTS** - Natural speech synthesis via gpt-4o-mini-tts
 - **Custom Backgrounds** - Upload or AI-generate backgrounds with gpt-image-1.5
 - **Real-time Captions** - Synchronized text overlays
 - **Project Management** - Dashboard with creation history
@@ -87,7 +87,7 @@ This creates 4 tables with RLS policies: `profiles`, `projects`, `backgrounds`, 
 |----------|--------|-------------|
 | `/api/generate-script` | POST | Generate video script with AI |
 | `/api/generate-speech` | POST | Convert text to speech |
-| `/api/generate-image` | POST | Generate background image with DALL-E 3 |
+| `/api/generate-image` | POST | Generate background image with gpt-image-1.5 |
 | `/api/upload-video` | POST | Upload generated video to Blob storage |
 | `/api/upload-background` | POST | Upload background image/video |
 | `/api/delete-video` | POST | Delete video from storage and DB |

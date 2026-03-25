@@ -93,8 +93,8 @@ Row Level Security (RLS) policies ensure data isolation:
 4. Server-side Supabase client uses cookie-based auth for database operations
 
 ### Video Generation Pipeline
-1. **Script Generation**: Azure AI Foundry GPT-4o creates engaging script
-2. **Voice Synthesis**: Azure AI Foundry TTS converts script to audio
+1. **Script Generation**: Azure AI Foundry GPT-5.4 creates engaging script
+2. **Voice Synthesis**: Azure AI Foundry gpt-4o-mini-tts converts script to audio
 3. **Background Selection**: User chooses from uploaded/generated backgrounds
 4. **Video Composition**: Client-side FFmpeg combines audio and background
 5. **Upload & Storage**: Final video uploaded to Vercel Blob
