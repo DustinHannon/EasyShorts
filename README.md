@@ -11,7 +11,7 @@ EasyShorts is an AI-powered video creation platform that transforms text ideas i
 
 ## How It Works
 
-1. **Script Generation**: AI generates engaging scripts optimized for short-form content using OpenAI GPT-4
+1. **Script Generation**: AI generates engaging scripts optimized for short-form content using GPT-4o
 2. **Voice Synthesis**: Converts scripts to natural-sounding speech with multiple voice options
 3. **Background Selection**: Users can upload custom backgrounds or generate AI images
 4. **Video Assembly**: Client-side FFmpeg processing combines audio, background, and captions into final video
@@ -22,7 +22,7 @@ EasyShorts is an AI-powered video creation platform that transforms text ideas i
 - **Framework**: Next.js 16 with App Router, React 19, TypeScript
 - **Database & Auth**: Supabase (PostgreSQL + Auth + RLS)
 - **File Storage**: Vercel Blob
-- **AI**: OpenAI API (GPT-4o for scripts, TTS for voice, DALL-E 3 for images)
+- **AI**: Azure AI Foundry (GPT-4o for scripts, TTS for voice, gpt-image-1.5 for images)
 - **Video Processing**: FFmpeg.wasm (client-side)
 - **UI**: Tailwind CSS, Radix UI, shadcn/ui
 - **Hosting**: Vercel
@@ -58,7 +58,7 @@ pnpm dev
 |----------|----------|-------------|
 | `NEXT_PUBLIC_SUPABASE_URL` | Yes | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anonymous/publishable key |
-| `OPENAI_API_KEY` | Yes | OpenAI API key (server-side only) |
+| `AZURE_AI_KEY` | Yes | Azure AI Foundry API key (server-side only) |
 | `BLOB_READ_WRITE_TOKEN` | Yes | Vercel Blob storage token |
 
 ### Database Setup
@@ -75,8 +75,8 @@ This creates 4 tables with RLS policies: `profiles`, `projects`, `backgrounds`, 
 ## Key Features
 
 - **AI Script Generation** - Context-aware content creation with GPT-4o
-- **Multi-voice TTS** - Natural speech synthesis via OpenAI TTS
-- **Custom Backgrounds** - Upload or AI-generate backgrounds with DALL-E 3
+- **Multi-voice TTS** - Natural speech synthesis via Azure AI TTS
+- **Custom Backgrounds** - Upload or AI-generate backgrounds with gpt-image-1.5
 - **Real-time Captions** - Synchronized text overlays
 - **Project Management** - Dashboard with creation history
 - **Responsive Design** - Mobile-optimized interface

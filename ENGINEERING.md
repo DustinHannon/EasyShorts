@@ -16,7 +16,7 @@ EasyShorts follows a modern full-stack architecture with clear separation of con
 - **Database**: Supabase PostgreSQL with Row Level Security
 - **Authentication**: Supabase Auth with JWT tokens
 - **File Storage**: Vercel Blob for media assets
-- **AI Integration**: OpenAI API for content generation
+- **AI Integration**: Azure AI Foundry for content generation
 
 ## Database Design
 
@@ -93,8 +93,8 @@ Row Level Security (RLS) policies ensure data isolation:
 4. Server-side Supabase client uses cookie-based auth for database operations
 
 ### Video Generation Pipeline
-1. **Script Generation**: OpenAI GPT-4o creates engaging script
-2. **Voice Synthesis**: OpenAI TTS converts script to audio
+1. **Script Generation**: Azure AI Foundry GPT-4o creates engaging script
+2. **Voice Synthesis**: Azure AI Foundry TTS converts script to audio
 3. **Background Selection**: User chooses from uploaded/generated backgrounds
 4. **Video Composition**: Client-side FFmpeg combines audio and background
 5. **Upload & Storage**: Final video uploaded to Vercel Blob
@@ -154,7 +154,7 @@ Row Level Security (RLS) policies ensure data isolation:
 ### Environment Variables
 - `NEXT_PUBLIC_SUPABASE_URL` — Supabase project URL
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Supabase anonymous key
-- `OPENAI_API_KEY` — OpenAI API key (server-side only)
+- `AZURE_AI_KEY` — Azure AI Foundry API key (server-side only)
 - `BLOB_READ_WRITE_TOKEN` — Vercel Blob storage token
 
 ### Local Development

@@ -2,14 +2,15 @@ import { type NextRequest, NextResponse } from "next/server"
 import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
 
+const AZURE_ENDPOINT = "https://AZ-UTIL-AI.openai.azure.com/openai/v1/audio/speech"
+
 export async function POST(request: NextRequest) {
   try {
-    const apiKey = process.env.OPENAI_API_KEY
+    const apiKey = process.env.AZURE_AI_KEY
     if (!apiKey) {
-      return NextResponse.json({ error: "OpenAI API key not configured" }, { status: 500 })
+      return NextResponse.json({ error: "Azure AI key not configured" }, { status: 500 })
     }
 
-    // Verify authentication
     const cookieStore = await cookies()
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -37,7 +38,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Text is required" }, { status: 400 })
     }
 
-    const response = await fetch("https://api.openai.com/v1/audio/speech", {
+    const response = await fetch(AZURE_ENDPOINT, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -53,7 +54,7 @@ export async function POST(request: NextRequest) {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
-      console.error("OpenAI API error:", errorData)
+      console.error("Azure AI API error:", errorData)
       return NextResponse.json({ error: "Failed to generate speech" }, { status: 500 })
     }
 
