@@ -86,7 +86,7 @@ Output should be pure spoken dialogue that flows naturally when read aloud.`
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "gpt-4o",
+        model: "gpt-5.4",
         messages: [
           {
             role: "user",
