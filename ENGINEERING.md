@@ -23,50 +23,59 @@ EasyShorts follows a modern full-stack architecture with clear separation of con
 ### Core Tables
 
 #### profiles
-\`\`\`sql
-- id (uuid, primary key)
-- email (text, unique)
+```sql
+- id (uuid, primary key, references auth.users)
+- email (text)
 - full_name (text)
 - avatar_url (text)
-- created_at (timestamp)
-- updated_at (timestamp)
-\`\`\`
+- created_at (timestamptz)
+- updated_at (timestamptz)
+```
 
 #### projects
-\`\`\`sql
+```sql
 - id (uuid, primary key)
-- user_id (uuid, foreign key)
-- title (text)
+- user_id (uuid, foreign key -> auth.users, cascade delete)
+- title (text, not null)
+- description (text)
 - script (text)
-- status (enum: draft, processing, completed, failed)
-- background_id (uuid, foreign key)
-- audio_url (text)
-- video_url (text)
-- created_at (timestamp)
-- updated_at (timestamp)
-\`\`\`
+- voice_settings (jsonb, default '{}')
+- background_url (text)
+- background_type (text, check: image/video/color)
+- video_settings (jsonb, default '{}')
+- status (text, check: draft/processing/completed/failed)
+- progress (integer, default 0)
+- progress_stage (text, default 'waiting')
+- progress_message (text, default 'Waiting to start...')
+- created_at (timestamptz)
+- updated_at (timestamptz)
+```
 
 #### backgrounds
-\`\`\`sql
+```sql
 - id (uuid, primary key)
-- user_id (uuid, foreign key)
-- name (text)
-- type (enum: image, video)
-- url (text)
-- thumbnail_url (text)
-- created_at (timestamp)
-\`\`\`
+- user_id (uuid, foreign key -> auth.users, cascade delete)
+- name (text, not null)
+- url (text, not null)
+- type (text, check: image/video, not null)
+- size (integer)
+- created_at (timestamptz)
+```
 
 #### generated_videos
-\`\`\`sql
+```sql
 - id (uuid, primary key)
-- project_id (uuid, foreign key)
-- user_id (uuid, foreign key)
-- url (text)
-- thumbnail_url (text)
+- project_id (uuid, foreign key -> projects, on delete set null)
+- user_id (uuid, foreign key -> auth.users, cascade delete)
+- url (text, not null)
+- format (text, not null)
+- quality (text, not null)
 - duration (integer)
-- created_at (timestamp)
-\`\`\`
+- size (integer)
+- background_url (text)
+- background_type (text)
+- created_at (timestamptz)
+```
 
 ### Security Model
 
@@ -81,10 +90,10 @@ Row Level Security (RLS) policies ensure data isolation:
 1. User signs up/logs in via Supabase Auth
 2. JWT token stored in httpOnly cookie
 3. Middleware validates token on protected routes
-4. Server-side Supabase client uses service role for database operations
+4. Server-side Supabase client uses cookie-based auth for database operations
 
 ### Video Generation Pipeline
-1. **Script Generation**: OpenAI GPT-4 creates engaging script
+1. **Script Generation**: OpenAI GPT-4o creates engaging script
 2. **Voice Synthesis**: OpenAI TTS converts script to audio
 3. **Background Selection**: User chooses from uploaded/generated backgrounds
 4. **Video Composition**: Client-side FFmpeg combines audio and background
@@ -134,24 +143,30 @@ Row Level Security (RLS) policies ensure data isolation:
 - Rate limiting on AI API calls
 - Content moderation hooks (future enhancement)
 
-## Deployment Strategy
+## Deployment
 
-### Development Environment
-- Local development with hot reloading
-- Environment variable management via .env.local
-- Database migrations via Supabase CLI
+### Infrastructure
+- **Hosting**: Vercel (Pro plan)
+- **Database**: Supabase (PostgreSQL 17)
+- **File Storage**: Vercel Blob
+- **Domain**: easyshorts.vercel.app
+
+### Environment Variables
+- `NEXT_PUBLIC_SUPABASE_URL` — Supabase project URL
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Supabase anonymous key
+- `OPENAI_API_KEY` — OpenAI API key (server-side only)
+- `BLOB_READ_WRITE_TOKEN` — Vercel Blob storage token
+
+### Local Development
+```bash
+pnpm install
+pnpm dev
+```
 
 ### Production Deployment
-- Vercel deployment with automatic builds
-- Environment variables via Vercel dashboard
-- Database hosted on Supabase cloud
-- CDN delivery for static assets
-
-### Monitoring & Observability
-- Vercel Analytics for performance monitoring
-- Supabase dashboard for database metrics
-- Error tracking via built-in Next.js error handling
-- Custom logging for business logic events
+- Automatic deployment on push to `main` via Vercel git integration
+- Environment variables configured in Vercel dashboard
+- API functions have 60s max duration (vercel.json)
 
 ## Development Workflow
 
@@ -159,19 +174,11 @@ Row Level Security (RLS) policies ensure data isolation:
 - TypeScript for type safety
 - ESLint and Prettier for code formatting
 - Conventional commits for version control
-- Component documentation with JSDoc
-
-### Testing Strategy
-- Unit tests for utility functions
-- Integration tests for API routes
-- End-to-end tests for critical user flows
-- Manual testing for UI/UX validation
 
 ### Version Control
 - Feature branch workflow
 - Pull request reviews required
 - Automated deployment on merge to main
-- Semantic versioning for releases
 
 ## Future Enhancements
 
@@ -185,125 +192,4 @@ Row Level Security (RLS) policies ensure data isolation:
 ### Technical Improvements
 - WebRTC for real-time collaboration
 - Advanced caching strategies
-- Microservices architecture migration
 - Enhanced error monitoring and alerting
-\`\`\`
-
-\`\`\`plaintext file=".gitignore"
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
-# dependencies
-/node_modules
-/.pnp
-.pnp.js
-.pnp.cjs
-
-# testing
-/coverage
-
-# next.js
-/.next/
-/out/
-
-# production
-/build
-
-# misc
-.DS_Store
-*.pem
-
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-
-# env files (can opt-in for committing if needed)
-.env*
-
-# vercel
-.vercel
-
-# typescript
-*.tsbuildinfo
-next-env.d.ts
-
-# IDE files
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS generated files
-Thumbs.db
-ehthumbs.db
-
-# Logs
-logs
-*.log
-
-# Runtime data
-pids
-*.pid
-*.seed
-*.pid.lock
-
-# Coverage directory used by tools like istanbul
-coverage/
-*.lcov
-
-# nyc test coverage
-.nyc_output
-
-# Dependency directories
-jspm_packages/
-
-# Optional npm cache directory
-.npm
-
-# Optional eslint cache
-.eslintcache
-
-# Microbundle cache
-.rpt2_cache/
-.rts2_cache_cjs/
-.rts2_cache_es/
-.rts2_cache_umd/
-
-# Optional REPL history
-.node_repl_history
-
-# Output of 'npm pack'
-*.tgz
-
-# Yarn Integrity file
-.yarn-integrity
-
-# parcel-bundler cache (https://parceljs.org/)
-.cache
-.parcel-cache
-
-# Next.js build output
-.next
-
-# Nuxt.js build / generate output
-.nuxt
-dist
-
-# Storybook build outputs
-.out
-.storybook-out
-
-# Temporary folders
-tmp/
-temp/
-
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
