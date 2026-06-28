@@ -151,35 +151,24 @@ export function BackgroundStep() {
         handleUploadUrl: "/api/background/upload",
       })
 
-      // Add to saved backgrounds and select it
-      const newBackground: SavedBackground = {
-        id: crypto.randomUUID(), // Temporary ID until we refresh
-        name: file.name,
-        url: blob.url,
-        type: file.type,
-        created_at: new Date().toISOString(),
+      // Persist the DB row through the authenticated record route (the blob
+      // completion callback has no cookies and cannot satisfy RLS).
+      const response = await fetch("/api/background/record", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: blob.url, name: file.name, size: file.size }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to save background")
       }
 
-      setSavedBackgrounds((prev) => [newBackground, ...prev])
-      setSelectedBackground(`saved-${newBackground.id}`)
+      const { background } = (await response.json()) as { background: SavedBackground }
 
-      // Refresh saved backgrounds from database to get correct ID
-      const supabase = createClient()
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (user) {
-        const { data } = await supabase
-          .from("backgrounds")
-          .select("*")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false })
-          .limit(12)
-
-        if (data) {
-          setSavedBackgrounds(data)
-        }
-      }
+      // Use the real inserted row (with its real id) so the saved selection
+      // resolves correctly downstream.
+      setSavedBackgrounds((prev) => [background, ...prev])
+      setSelectedBackground(`saved-${background.id}`)
     } catch (error) {
       console.error("Upload error:", error)
       dispatch({ type: "SET_ERROR", error: "Failed to upload background. Please try again." })
@@ -190,6 +179,20 @@ export function BackgroundStep() {
         fileInputRef.current.value = ""
       }
     }
+  }
+
+  const handleDeleteGenerated = (index: number) => {
+    setGeneratedImages((prev) => prev.filter((_, i) => i !== index))
+    // Remap the selection so it keeps pointing at the same image (indices
+    // after the removed one shift down by one).
+    setSelectedBackground((current) => {
+      const match = current.match(/^generated-(\d+)$/)
+      if (!match) return current
+      const selectedIndex = Number(match[1])
+      if (selectedIndex === index) return "default"
+      if (selectedIndex > index) return `generated-${selectedIndex - 1}`
+      return current
+    })
   }
 
   const handleNext = async () => {
@@ -390,12 +393,10 @@ export function BackgroundStep() {
                     <Button
                       size="sm"
                       variant="destructive"
+                      aria-label={`Delete generated background ${index + 1}`}
                       onClick={(e) => {
                         e.stopPropagation()
-                        setGeneratedImages((prev) => prev.filter((_, i) => i !== index))
-                        if (selectedBackground === `generated-${index}`) {
-                          setSelectedBackground("default")
-                        }
+                        handleDeleteGenerated(index)
                       }}
                     >
                       <Trash2 className="w-3 h-3" />
@@ -418,7 +419,7 @@ export function BackgroundStep() {
           <Button
             variant="outline"
             onClick={() => dispatch({ type: "SET_STEP", step: 2 })}
-            className="border-white/20 text-white hover:bg-white/10"
+            className="border-white/20 text-white hover:bg-white/10 bg-transparent"
           >
             Back
           </Button>

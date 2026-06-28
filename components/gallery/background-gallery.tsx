@@ -1,16 +1,17 @@
 "use client"
 
 import type React from "react"
-import { useRef } from "react"
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { BackgroundActions } from "./background-actions"
-import { Search, Filter, Grid, List, Upload, X } from "lucide-react"
+import { Search, Filter, Grid, List, Upload } from "lucide-react"
 import { upload } from "@vercel/blob/client"
+import { toast } from "@/hooks/use-toast"
 
 interface Background {
   id: string
@@ -35,7 +36,14 @@ export function BackgroundGallery({ backgrounds, onUpload }: BackgroundGalleryPr
   const [isUploading, setIsUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const filteredBackgrounds = backgrounds
+  // Local copy so a fresh upload can be shown immediately (optimistic) without
+  // waiting for the parent to re-fetch. Re-syncs whenever the prop changes.
+  const [items, setItems] = useState<Background[]>(backgrounds)
+  useEffect(() => {
+    setItems(backgrounds)
+  }, [backgrounds])
+
+  const filteredBackgrounds = items
     .filter((bg) => {
       if (!searchTerm) return true
       const searchLower = String(searchTerm || "").toLowerCase()
@@ -87,18 +95,16 @@ export function BackgroundGallery({ backgrounds, onUpload }: BackgroundGalleryPr
     setSelectedBackground(null)
   }
 
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      closeModal()
-    }
-  }
-
   const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
 
     if (!file.type.startsWith("image/")) {
-      alert("Please select an image file (JPG, PNG, WebP, etc.)")
+      toast({
+        title: "Invalid file",
+        description: "Please select an image file (JPG, PNG, WebP, etc.).",
+        variant: "destructive",
+      })
       return
     }
 
@@ -109,14 +115,46 @@ export function BackgroundGallery({ backgrounds, onUpload }: BackgroundGalleryPr
         handleUploadUrl: "/api/background/upload",
       })
 
-      console.log("Background uploaded successfully:", blob)
+      // Persist the DB row via the authenticated record route (the blob
+      // completion callback has no cookies and cannot satisfy RLS).
+      const response = await fetch("/api/background/record", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: blob.url, name: file.name, size: file.size }),
+      })
 
-      if (onUpload) {
-        onUpload()
+      if (!response.ok) {
+        throw new Error("Failed to save background")
       }
+
+      const { background } = (await response.json()) as {
+        background: { id: string; name: string; url: string; type: string | null; size: number | null; created_at: string }
+      }
+
+      // Optimistically show the real inserted row right away.
+      const mapped: Background = {
+        id: background.id,
+        filename: background.name,
+        file_path: background.url,
+        file_size: background.size ?? 0,
+        mime_type: background.type === "image" ? "image/png" : null,
+        created_at: background.created_at,
+      }
+      setItems((prev) => [mapped, ...prev])
+
+      toast({
+        title: "Background uploaded",
+        description: "Your background was added to the gallery.",
+      })
+
+      onUpload?.()
     } catch (error) {
       console.error("Error uploading background:", error)
-      alert(`Failed to upload background: ${error instanceof Error ? error.message : "Please try again."}`)
+      toast({
+        title: "Upload failed",
+        description: "Failed to upload background. Please try again.",
+        variant: "destructive",
+      })
     } finally {
       setIsUploading(false)
       if (fileInputRef.current) {
@@ -125,7 +163,7 @@ export function BackgroundGallery({ backgrounds, onUpload }: BackgroundGalleryPr
     }
   }
 
-  if (backgrounds.length === 0) {
+  if (items.length === 0) {
     return (
       <Card className="bg-white/10 backdrop-blur-sm border-white/20">
         <CardContent className="flex flex-col items-center justify-center py-12">
@@ -156,6 +194,7 @@ export function BackgroundGallery({ backgrounds, onUpload }: BackgroundGalleryPr
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
             <Input
+              aria-label="Search backgrounds"
               placeholder="Search backgrounds..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -242,7 +281,9 @@ export function BackgroundGallery({ backgrounds, onUpload }: BackgroundGalleryPr
         </div>
       </div>
 
-      {viewMode === "grid" ? (
+      {filteredBackgrounds.length === 0 ? (
+        <div className="text-center py-12 text-gray-400">No backgrounds match your search.</div>
+      ) : viewMode === "grid" ? (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
           {filteredBackgrounds.map((background) => (
             <Card
@@ -251,8 +292,10 @@ export function BackgroundGallery({ backgrounds, onUpload }: BackgroundGalleryPr
             >
               <CardContent className="p-3">
                 <div className="space-y-3">
-                  <div
-                    className="aspect-square bg-black rounded-lg overflow-hidden cursor-pointer"
+                  <button
+                    type="button"
+                    aria-label={`Preview ${background.filename}`}
+                    className="block w-full aspect-square bg-black rounded-lg overflow-hidden cursor-pointer"
                     onClick={() => setSelectedBackground(background)}
                   >
                     <img
@@ -260,7 +303,7 @@ export function BackgroundGallery({ backgrounds, onUpload }: BackgroundGalleryPr
                       alt={background.filename}
                       className="w-full h-full object-cover"
                     />
-                  </div>
+                  </button>
                   <div className="space-y-2">
                     <h3 className="text-white text-sm font-medium truncate">{background.filename}</h3>
                     <div className="flex items-center justify-between">
@@ -292,7 +335,9 @@ export function BackgroundGallery({ backgrounds, onUpload }: BackgroundGalleryPr
             >
               <CardContent className="p-4">
                 <div className="flex items-center gap-4">
-                  <div
+                  <button
+                    type="button"
+                    aria-label={`Preview ${background.filename}`}
                     className="w-16 h-16 bg-black rounded-lg overflow-hidden flex-shrink-0 cursor-pointer"
                     onClick={() => setSelectedBackground(background)}
                   >
@@ -301,7 +346,7 @@ export function BackgroundGallery({ backgrounds, onUpload }: BackgroundGalleryPr
                       alt={background.filename}
                       className="w-full h-full object-cover"
                     />
-                  </div>
+                  </button>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <h3 className="text-white font-medium truncate">{background.filename}</h3>
@@ -325,36 +370,29 @@ export function BackgroundGallery({ backgrounds, onUpload }: BackgroundGalleryPr
         </div>
       )}
 
-      {selectedBackground && (
-        <div
-          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          onClick={handleBackdropClick}
-        >
-          <div className="relative max-w-4xl max-h-full">
-            <Button
-              variant="outline"
-              size="sm"
-              className="absolute -top-12 right-0 bg-white/10 border-white/20 text-white hover:bg-white/20 z-10"
-              onClick={closeModal}
-            >
-              <X className="w-4 h-4" />
-            </Button>
-            <img
-              src={selectedBackground.file_path || "/placeholder.svg"}
-              alt={selectedBackground.filename}
-              className="max-w-full max-h-[80vh] object-contain rounded-lg"
-            />
-            <div className="absolute bottom-0 left-0 right-0 bg-black/60 backdrop-blur-sm p-4 rounded-b-lg">
-              <h3 className="text-white font-medium mb-1">{selectedBackground.filename}</h3>
-              <div className="flex items-center gap-4 text-sm text-gray-300">
-                <span>{getFileType(selectedBackground.mime_type)}</span>
-                <span>{formatFileSize(selectedBackground.file_size)}</span>
-                <span>{new Date(selectedBackground.created_at).toLocaleDateString()}</span>
+      <Dialog open={!!selectedBackground} onOpenChange={(open) => !open && closeModal()}>
+        <DialogContent className="max-w-4xl bg-slate-900 border-slate-700">
+          {selectedBackground && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-white">{selectedBackground.filename}</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <img
+                  src={selectedBackground.file_path || "/placeholder.svg"}
+                  alt={selectedBackground.filename}
+                  className="w-full max-h-[70vh] object-contain rounded-lg bg-black"
+                />
+                <div className="flex items-center gap-4 text-sm text-gray-300">
+                  <span>{getFileType(selectedBackground.mime_type)}</span>
+                  <span>{formatFileSize(selectedBackground.file_size)}</span>
+                  <span>{new Date(selectedBackground.created_at).toLocaleDateString()}</span>
+                </div>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

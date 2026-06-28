@@ -132,6 +132,7 @@ export function VideoGallery({ videos }: VideoGalleryProps) {
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
             <Input
+              aria-label="Search videos"
               placeholder="Search videos..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -163,6 +164,8 @@ export function VideoGallery({ videos }: VideoGalleryProps) {
           <Button
             variant={viewMode === "grid" ? "default" : "outline"}
             size="sm"
+            aria-label="Grid view"
+            aria-pressed={viewMode === "grid"}
             onClick={() => setViewMode("grid")}
             className={
               viewMode === "grid"
@@ -175,6 +178,8 @@ export function VideoGallery({ videos }: VideoGalleryProps) {
           <Button
             variant={viewMode === "list" ? "default" : "outline"}
             size="sm"
+            aria-label="List view"
+            aria-pressed={viewMode === "list"}
             onClick={() => setViewMode("list")}
             className={
               viewMode === "list"
@@ -188,7 +193,15 @@ export function VideoGallery({ videos }: VideoGalleryProps) {
       </div>
 
       {/* Videos Grid/List */}
-      {viewMode === "grid" ? (
+      {filteredVideos.length === 0 ? (
+        <Card className="bg-white/10 backdrop-blur-sm border-white/20">
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <div className="text-6xl mb-4">🔍</div>
+            <h3 className="text-lg font-medium text-white mb-2">No results found</h3>
+            <p className="text-gray-400 text-center">Try adjusting your search or filters</p>
+          </CardContent>
+        </Card>
+      ) : viewMode === "grid" ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {filteredVideos.map((video) => {
             const backgroundImage = getVideoBackground(video)
@@ -201,8 +214,10 @@ export function VideoGallery({ videos }: VideoGalleryProps) {
                 <CardContent className="p-4">
                   <div className="space-y-3">
                     {/* Video Thumbnail */}
-                    <div
-                      className="aspect-[9/16] rounded-lg flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity relative overflow-hidden"
+                    <button
+                      type="button"
+                      aria-label={`Play ${video.projects?.title || video.filename}`}
+                      className="aspect-[9/16] w-full rounded-lg flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity relative overflow-hidden"
                       onClick={() => setSelectedVideo(video)}
                       style={{
                         backgroundColor: backgroundImage ? "transparent" : "#000000",
@@ -229,7 +244,7 @@ export function VideoGallery({ videos }: VideoGalleryProps) {
                           <p className="text-white text-sm">Click to play</p>
                         </div>
                       )}
-                    </div>
+                    </button>
 
                     {/* Video Info */}
                     <div className="space-y-2">
@@ -269,7 +284,9 @@ export function VideoGallery({ videos }: VideoGalleryProps) {
                 <CardContent className="p-4">
                   <div className="flex items-center gap-4">
                     {/* Thumbnail */}
-                    <div
+                    <button
+                      type="button"
+                      aria-label={`Play ${video.projects?.title || video.filename}`}
                       className="w-24 h-16 rounded-lg flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity flex-shrink-0 relative overflow-hidden"
                       onClick={() => setSelectedVideo(video)}
                       style={{
@@ -292,7 +309,7 @@ export function VideoGallery({ videos }: VideoGalleryProps) {
                         /* Only show film icon when no background available in list view */
                         <div className="text-white text-lg">🎬</div>
                       )}
-                    </div>
+                    </button>
 
                     {/* Info */}
                     <div className="flex-1 min-w-0">

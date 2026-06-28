@@ -14,14 +14,15 @@ export default async function LoginPage() {
     )
   }
 
-  // Check if user is already logged in
+  // Check if user is already logged in (getUser revalidates against the
+  // auth server, unlike getSession which only reads the cookie).
   const supabase = await createClient()
   const {
-    data: { session },
-  } = await supabase.auth.getSession()
+    data: { user },
+  } = await supabase.auth.getUser()
 
   // If user is logged in, redirect to home page
-  if (session) {
+  if (user) {
     redirect("/")
   }
 

@@ -85,14 +85,16 @@ This creates 4 tables with RLS policies: `profiles`, `projects`, `backgrounds`, 
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/generate-script` | POST | Generate video script with AI |
-| `/api/generate-speech` | POST | Convert text to speech |
-| `/api/generate-image` | POST | Generate background image with gpt-image-1.5 |
-| `/api/upload-video` | POST | Upload generated video to Blob storage |
-| `/api/upload-background` | POST | Upload background image/video |
-| `/api/delete-video` | POST | Delete video from storage and DB |
-| `/api/delete-background` | POST | Delete background from storage and DB |
+| `/api/generate-script` | POST | Generate video script with AI (rate-limited per user/day) |
+| `/api/generate-speech` | POST | Convert text to speech (rate-limited per user/day) |
+| `/api/generate-image` | POST | Generate background image with gpt-image-1.5 (rate-limited per user/day) |
+| `/api/video/upload` | POST | Issue a Vercel Blob client-upload token for the final video |
+| `/api/video/record` | POST | Persist generated-video metadata to the database |
+| `/api/background/upload` | POST | Issue a Vercel Blob client-upload token for a custom background |
+| `/api/background/record` | POST | Persist uploaded-background metadata to the database |
 | `/api/video-progress/[projectId]` | GET | Track video generation progress |
+
+Video and background **deletes** go through server actions (`lib/supabase/actions.ts`), not API routes. All AI endpoints enforce a per-user daily quota via the `consume_ai_quota` Postgres function.
 
 ## Database Schema
 

@@ -42,8 +42,8 @@ export async function updateProject(
     title?: string
     description?: string
     script?: string
-    voice_settings?: any
-    video_settings?: any
+    voice_settings?: Record<string, unknown>
+    video_settings?: Record<string, unknown>
     status?: string
   },
 ) {

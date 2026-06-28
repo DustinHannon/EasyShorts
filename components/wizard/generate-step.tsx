@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useWizard } from "./wizard-provider"
@@ -8,6 +8,7 @@ import { updateProject } from "@/lib/supabase/actions"
 import { Loader2, Play, Download, Share, RefreshCw, CheckCircle } from "lucide-react"
 import { ClientVideoProcessor, type ProcessingProgress } from "@/lib/client-video-processor"
 import { createClient } from "@/lib/supabase/client"
+import { resolveBackgroundUrl } from "@/lib/backgrounds"
 import { upload } from "@vercel/blob/client" // Import client upload function
 import { useRouter } from "next/navigation"
 
@@ -30,16 +31,24 @@ export function GenerateStep() {
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
   const [localVideoBlob, setLocalVideoBlob] = useState<Blob | null>(null)
+  const [localVideoUrl, setLocalVideoUrl] = useState<string | null>(null)
   const [isSharing, setIsSharing] = useState(false)
 
-  const generateFullAudio = async (): Promise<string> => {
-    console.log("🎵 Starting audio generation with settings:", {
-      text: state.project.script?.substring(0, 100) + "...",
-      voice: state.project.voice_settings?.voice || "alloy",
-      speed: state.project.voice_settings?.speed || 1.0,
-      scriptLength: state.project.script?.length,
-    })
+  // Create a single object URL for the local video blob and revoke it on cleanup
+  // (previously a new blob URL was created on every render inside JSX, leaking memory).
+  useEffect(() => {
+    if (!localVideoBlob) {
+      setLocalVideoUrl(null)
+      return
+    }
+    const url = URL.createObjectURL(localVideoBlob)
+    setLocalVideoUrl(url)
+    return () => {
+      URL.revokeObjectURL(url)
+    }
+  }, [localVideoBlob])
 
+  const generateFullAudio = async (): Promise<string> => {
     try {
       const response = await fetch("/api/generate-speech", {
         method: "POST",
@@ -53,104 +62,26 @@ export function GenerateStep() {
         }),
       })
 
-      console.log("🎵 Audio generation API response status:", response.status)
-
       if (!response.ok) {
         const errorText = await response.text()
-        console.error("❌ Audio generation failed:", {
-          status: response.status,
-          statusText: response.statusText,
-          error: errorText,
-        })
+        console.error("Audio generation failed:", response.status, response.statusText)
         throw new Error(`Audio generation failed (${response.status}): ${errorText || response.statusText}`)
       }
 
       const audioBlob = await response.blob()
-      console.log("✅ Audio generation successful:", {
-        blobSize: audioBlob.size,
-        blobType: audioBlob.type,
-      })
-
       return URL.createObjectURL(audioBlob)
     } catch (error) {
-      console.error("❌ Audio generation error:", error)
+      console.error("Audio generation error:", error)
       throw new Error(`Failed to generate audio: ${error instanceof Error ? error.message : "Unknown error"}`)
     }
   }
 
   const getBackgroundUrl = async (): Promise<string> => {
-    const videoSettings = state.project.video_settings || {}
-    const background = videoSettings.background || "default"
-
-    console.log("🖼️ Resolving background URL for:", background)
-
-    if (background.startsWith("saved-")) {
-      const savedId = background.substring(6) // Remove "saved-" prefix (6 characters)
-      if (!savedId || savedId.trim() === "") {
-        console.warn("⚠️ Invalid saved background ID, using default")
-        return "/abstract-background.png"
-      }
-
-      try {
-        const supabase = createClient()
-        const { data, error } = await supabase.from("backgrounds").select("url").eq("id", savedId).single()
-
-        console.log("🔍 Database query result:", { data, error, savedId })
-
-        if (!error && data) {
-          const resolvedUrl = data.url
-          if (resolvedUrl && resolvedUrl.trim() !== "") {
-            console.log("✅ Found saved background URL:", resolvedUrl)
-            return resolvedUrl
-          } else {
-            console.warn("⚠️ Saved background record exists but has no valid URL:", {
-              data,
-              url: data.url,
-            })
-          }
-        } else {
-          console.warn("⚠️ Database query failed or returned no data:", { error, data, savedId })
-        }
-
-        console.warn("⚠️ Falling back to default background due to invalid saved background")
-        return "/abstract-background.png"
-      } catch (error) {
-        console.error("❌ Error fetching saved background:", error)
-        return "/abstract-background.png"
-      }
-    }
-
-    if (background.startsWith("generated-")) {
-      const backgroundParts = background.split("-")
-      const indexStr = backgroundParts[1]
-      if (!indexStr || indexStr.trim() === "" || isNaN(Number(indexStr))) {
-        console.warn("⚠️ Invalid generated background index, using default")
-        return "/abstract-background.png"
-      }
-      const index = Number.parseInt(indexStr, 10)
-      const generatedUrl = videoSettings.customBackgrounds?.[index]
-      if (generatedUrl) {
-        console.log("✅ Found generated background URL:", generatedUrl)
-        return generatedUrl
-      } else {
-        console.warn("⚠️ Generated background not found at index", index)
-      }
-    }
-
-    const backgroundMap: Record<string, string> = {
-      default: "/abstract-background.png",
-      "abstract-gradient": "/abstract-background.png",
-      nature: "/serene-mountain-lake.png",
-      "mountain-lake": "/serene-mountain-lake.png",
-      city: "/vibrant-city-skyline.png",
-      "city-skyline": "/vibrant-city-skyline.png",
-      space: "/space-stars.png",
-      "space-stars": "/space-stars.png",
-    }
-
-    const resolvedUrl = backgroundMap[background] || "/abstract-background.png"
-    console.log("✅ Resolved preset background URL:", resolvedUrl)
-    return resolvedUrl
+    const supabase = createClient()
+    return resolveBackgroundUrl(state.project.video_settings, async (id) => {
+      const { data } = await supabase.from("backgrounds").select("url").eq("id", id).single()
+      return data?.url ?? null
+    })
   }
 
   const handleDownload = () => {
@@ -183,7 +114,6 @@ export function GenerateStep() {
     setIsSharing(true)
     try {
       await navigator.clipboard.writeText(videoUrl)
-      console.log("Video URL copied to clipboard:", videoUrl)
 
       if (navigator.share) {
         await navigator.share({
@@ -219,47 +149,23 @@ export function GenerateStep() {
       return
     }
 
-    console.log("🚀 Starting video generation process for project:", {
-      projectId: state.project.id,
-      title: state.project.title,
-      scriptLength: state.project.script.length,
-      voiceSettings: state.project.voice_settings,
-      videoSettings: state.project.video_settings,
-    })
-
     setIsGenerating(true)
     setGenerationProgress({ progress: 0, stage: "starting", message: "Starting video generation..." })
     dispatch({ type: "SET_ERROR", error: null })
 
     try {
-      console.log("📝 Updating project status to processing...")
       await updateProject(state.project.id, { status: "processing" })
-      console.log("✅ Project status updated successfully")
 
-      console.log("🎵 Step 1: Generating audio...")
       setGenerationProgress({ progress: 10, stage: "audio", message: "Generating full audio..." })
       const fullAudioUrl = await generateFullAudio()
       setAudioUrl(fullAudioUrl)
-      console.log("✅ Audio generation completed, URL created")
 
-      console.log("🖼️ Step 2: Resolving background URL...")
       setGenerationProgress({ progress: 20, stage: "background", message: "Resolving background..." })
       const backgroundUrl = await getBackgroundUrl()
-      console.log("✅ Background URL resolved:", backgroundUrl)
 
-      console.log("🎬 Step 3: Starting client-side video processing...")
       const processor = new ClientVideoProcessor()
 
       const captionsEnabled = state.project.video_settings?.captions !== false
-      console.log("📝 Video processing options:", {
-        audioUrl: fullAudioUrl,
-        backgroundUrl,
-        script: state.project.script.substring(0, 100) + "...",
-        format: state.project.video_settings?.format || "vertical",
-        quality: state.project.video_settings?.quality || "1080p",
-        captions: captionsEnabled,
-        projectId: state.project.id,
-      })
 
       const videoBlob = await processor.processVideo(
         {
@@ -277,40 +183,38 @@ export function GenerateStep() {
         },
       )
 
-      console.log("✅ Client-side video processing completed")
+      // The audio blob URL is fully consumed by the processor; release it.
+      URL.revokeObjectURL(fullAudioUrl)
+
       setLocalVideoBlob(videoBlob)
 
-      console.log("📤 Starting direct upload to Vercel Blob...")
       setGenerationProgress({ progress: 85, stage: "uploading", message: "Uploading directly to cloud storage..." })
 
-      const filename = `${state.project.id}_${Date.now()}.mp4`
+      const quality = state.project.video_settings?.quality || "1080p"
+      const parsedDuration = Number.parseInt(String(state.project.video_settings?.duration ?? ""), 10)
+      const duration = Number.isFinite(parsedDuration) ? parsedDuration : 60
+
+      // Upload under the per-user prefix the /api/video/upload route enforces.
+      const supabase = createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) {
+        throw new Error("Direct upload failed: not authenticated")
+      }
+      const filename = `users/${user.id}/videos/${state.project.id}_${Date.now()}.mp4`
 
       try {
-        console.log("[v0] 🚀 Starting client upload with:", {
-          filename,
-          blobSize: videoBlob.size,
-          blobType: videoBlob.type,
-          handleUploadUrl: "/api/video/upload",
-          clientPayload: {
-            projectId: state.project.id,
-            quality: state.project.video_settings?.quality || "1080p",
-            duration: 60,
-          },
-        })
-
         const blob = await upload(filename, videoBlob, {
           access: "public",
           handleUploadUrl: "/api/video/upload",
           clientPayload: JSON.stringify({
             projectId: state.project.id,
-            quality: state.project.video_settings?.quality || "1080p",
-            duration: 60,
+            quality,
+            duration,
           }),
         })
 
-        console.log("[v0] ✅ Client upload completed successfully:", { url: blob.url, size: blob.size })
-
-        console.log("[v0] 📝 Recording video metadata to database...")
         setGenerationProgress({ progress: 95, stage: "recording", message: "Saving video to gallery..." })
 
         const recordResponse = await fetch("/api/video/record", {
@@ -320,18 +224,15 @@ export function GenerateStep() {
             url: blob.url,
             size: videoBlob.size, // Use original blob size instead of upload response size
             projectId: state.project.id,
-            quality: state.project.video_settings?.quality || "1080p",
-            duration: 60,
+            quality,
+            duration,
           }),
         })
 
         if (!recordResponse.ok) {
-          const errorText = await recordResponse.text()
-          console.error("[v0] ❌ Failed to record video metadata:", errorText)
-          throw new Error(`Failed to save video to gallery: ${errorText}`)
+          console.error("Failed to record video metadata:", recordResponse.status)
+          throw new Error("Failed to save video to gallery")
         }
-
-        console.log("[v0] ✅ Video metadata recorded successfully")
 
         setGenerationProgress({ progress: 100, stage: "complete", message: "Video ready!" })
 
@@ -340,23 +241,11 @@ export function GenerateStep() {
 
         await updateProject(state.project.id, { status: "completed" })
       } catch (uploadError) {
-        console.error("[v0] ❌ Client upload failed with error:", {
-          error: uploadError,
-          message: uploadError instanceof Error ? uploadError.message : "Unknown error",
-          stack: uploadError instanceof Error ? uploadError.stack : undefined,
-          filename,
-          blobSize: videoBlob.size,
-        })
+        console.error("Client upload failed:", uploadError)
         throw new Error(`Direct upload failed: ${uploadError instanceof Error ? uploadError.message : "Unknown error"}`)
       }
     } catch (error) {
-      console.error("❌ Video generation process failed:", {
-        error: error instanceof Error ? error.message : error,
-        stack: error instanceof Error ? error.stack : undefined,
-        projectId: state.project.id,
-        currentStage: generationProgress.stage,
-        currentProgress: generationProgress.progress,
-      })
+      console.error("Video generation process failed:", error)
 
       let errorMessage = "Failed to generate video"
       if (error instanceof Error) {
@@ -374,17 +263,16 @@ export function GenerateStep() {
       }
 
       dispatch({ type: "SET_ERROR", error: errorMessage })
-      setIsGenerating(false)
 
       if (state.project.id) {
         try {
-          console.log("📝 Updating project status to failed...")
           await updateProject(state.project.id, { status: "failed" })
-          console.log("✅ Project status updated to failed")
         } catch (updateError) {
-          console.error("❌ Failed to update project status to failed:", updateError)
+          console.error("Failed to update project status to failed:", updateError)
         }
       }
+    } finally {
+      setIsGenerating(false)
     }
   }
 
@@ -392,6 +280,9 @@ export function GenerateStep() {
     setIsGenerating(false)
     setIsComplete(false)
     setVideoUrl(null)
+    if (audioUrl) {
+      URL.revokeObjectURL(audioUrl)
+    }
     setAudioUrl(null)
     setLocalVideoBlob(null)
     setGenerationProgress({ progress: 0, stage: "waiting", message: "Ready to generate" })
@@ -491,7 +382,7 @@ export function GenerateStep() {
           </div>
         )}
 
-        {isComplete && (videoUrl || localVideoBlob) && (
+        {isComplete && (videoUrl || localVideoUrl) && (
           <div className="bg-white/5 rounded-lg p-6">
             <h3 className="text-lg font-semibold text-white mb-4">Your Video is Ready! 🎉</h3>
             <div className="flex flex-col md:flex-row gap-6">
@@ -510,9 +401,9 @@ export function GenerateStep() {
                     >
                       Your browser does not support the video tag.
                     </video>
-                  ) : localVideoBlob ? (
+                  ) : localVideoUrl ? (
                     <video
-                      src={URL.createObjectURL(localVideoBlob)}
+                      src={localVideoUrl}
                       controls
                       className="w-full h-full object-cover"
                       poster={

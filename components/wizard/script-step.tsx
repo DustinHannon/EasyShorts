@@ -151,7 +151,7 @@ export function ScriptStep() {
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-gray-300">Style</label>
                   <Select value={safeStyle} onValueChange={handleStyleChange}>
-                    <SelectTrigger className="bg-white/5 border-white/20 text-white">
+                    <SelectTrigger aria-label="Script style" className="bg-white/5 border-white/20 text-white">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-slate-800 border-slate-700">
@@ -177,7 +177,7 @@ export function ScriptStep() {
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-gray-300">Duration</label>
                   <Select value={safeDuration} onValueChange={handleDurationChange}>
-                    <SelectTrigger className="bg-white/5 border-white/20 text-white">
+                    <SelectTrigger aria-label="Script duration" className="bg-white/5 border-white/20 text-white">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-slate-800 border-slate-700">
@@ -200,7 +200,7 @@ export function ScriptStep() {
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-gray-300">Audience</label>
                   <Select value={safeAudience} onValueChange={handleAudienceChange}>
-                    <SelectTrigger className="bg-white/5 border-white/20 text-white">
+                    <SelectTrigger aria-label="Target audience" className="bg-white/5 border-white/20 text-white">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-slate-800 border-slate-700">

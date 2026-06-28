@@ -7,6 +7,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { MoreHorizontal, Edit, Trash2, Play } from "lucide-react"
 import Link from "next/link"
 import { deleteProject } from "@/lib/supabase/actions"
+import { toast } from "@/hooks/use-toast"
 import { useTransition } from "react"
 
 interface Project {
@@ -28,7 +29,19 @@ export function ProjectCard({ project }: ProjectCardProps) {
   const handleDelete = () => {
     if (confirm("Are you sure you want to delete this project?")) {
       startTransition(async () => {
-        await deleteProject(project.id)
+        try {
+          await deleteProject(project.id)
+          toast({
+            title: "Project deleted",
+            description: "The project has been successfully deleted",
+          })
+        } catch (error) {
+          toast({
+            title: "Error",
+            description: "Failed to delete project",
+            variant: "destructive",
+          })
+        }
       })
     }
   }
@@ -55,7 +68,11 @@ export function ProjectCard({ project }: ProjectCardProps) {
         </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0 text-gray-400 hover:text-white">
+            <Button
+              variant="ghost"
+              aria-label="Project options"
+              className="h-8 w-8 p-0 text-gray-400 hover:text-white"
+            >
               <MoreHorizontal className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>

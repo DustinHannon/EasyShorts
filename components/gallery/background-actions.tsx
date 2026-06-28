@@ -66,7 +66,12 @@ export function BackgroundActions({ background }: BackgroundActionsProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="h-6 w-6 p-0 text-gray-400 hover:text-white" disabled={isPending}>
+        <Button
+          variant="ghost"
+          aria-label="More options"
+          className="h-6 w-6 p-0 text-gray-400 hover:text-white"
+          disabled={isPending}
+        >
           <MoreHorizontal className="h-3 w-3" />
         </Button>
       </DropdownMenuTrigger>
@@ -83,7 +88,12 @@ export function BackgroundActions({ background }: BackgroundActionsProps) {
           <Copy className="mr-2 h-4 w-4" />
           Copy Link
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={handleDelete} disabled={isPending} className="text-red-400">
+        <DropdownMenuItem
+          onClick={handleDelete}
+          disabled={isPending}
+          aria-label="Delete background"
+          className="text-red-400"
+        >
           <Trash2 className="mr-2 h-4 w-4" />
           Delete
         </DropdownMenuItem>

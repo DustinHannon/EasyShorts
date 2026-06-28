@@ -8,12 +8,13 @@ import { Switch } from "@/components/ui/switch"
 import { useWizard } from "./wizard-provider"
 import { updateProject } from "@/lib/supabase/actions"
 import { Loader2 } from "lucide-react"
+import type { VideoSettings } from "@/lib/backgrounds"
 
 export function SettingsStep() {
   const { state, dispatch } = useWizard()
   const [isSaving, setIsSaving] = useState(false)
 
-  const defaultSettings = {
+  const defaultSettings: VideoSettings = {
     format: "vertical",
     quality: "720p",
     duration: "auto",
@@ -21,7 +22,7 @@ export function SettingsStep() {
     background: "default",
   }
 
-  const videoSettings = { ...defaultSettings, ...state.project.video_settings }
+  const videoSettings: VideoSettings = { ...defaultSettings, ...state.project.video_settings }
 
   useEffect(() => {
     if (!state.project.video_settings || Object.keys(state.project.video_settings).length === 0) {
@@ -29,8 +30,8 @@ export function SettingsStep() {
     }
   }, [])
 
-  const handleSettingChange = (key: string, value: any) => {
-    const newSettings = { ...videoSettings, [key]: value }
+  const handleSettingChange = (key: string, value: string | number | boolean) => {
+    const newSettings: VideoSettings = { ...videoSettings, [key]: value }
     dispatch({ type: "UPDATE_PROJECT", updates: { video_settings: newSettings } })
   }
 
@@ -63,7 +64,7 @@ export function SettingsStep() {
           <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-300">Video Format</label>
             <Select value={videoSettings.format} onValueChange={(value) => handleSettingChange("format", value)}>
-              <SelectTrigger className="bg-white/5 border-white/20 text-white">
+              <SelectTrigger aria-label="Video format" className="bg-white/5 border-white/20 text-white">
                 <SelectValue placeholder="Vertical (9:16) - TikTok/Shorts" />
               </SelectTrigger>
               <SelectContent className="bg-slate-800 border-slate-700">
@@ -83,7 +84,7 @@ export function SettingsStep() {
           <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-300">Quality</label>
             <Select value={videoSettings.quality} onValueChange={(value) => handleSettingChange("quality", value)}>
-              <SelectTrigger className="bg-white/5 border-white/20 text-white">
+              <SelectTrigger aria-label="Quality" className="bg-white/5 border-white/20 text-white">
                 <SelectValue placeholder="720p HD" />
               </SelectTrigger>
               <SelectContent className="bg-slate-800 border-slate-700">
@@ -102,8 +103,11 @@ export function SettingsStep() {
 
           <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-300">Duration</label>
-            <Select value={videoSettings.duration} onValueChange={(value) => handleSettingChange("duration", value)}>
-              <SelectTrigger className="bg-white/5 border-white/20 text-white">
+            <Select
+              value={String(videoSettings.duration ?? "auto")}
+              onValueChange={(value) => handleSettingChange("duration", value)}
+            >
+              <SelectTrigger aria-label="Duration" className="bg-white/5 border-white/20 text-white">
                 <SelectValue placeholder="Auto (Based on script)" />
               </SelectTrigger>
               <SelectContent className="bg-slate-800 border-slate-700">
@@ -127,6 +131,7 @@ export function SettingsStep() {
             <div className="flex items-center justify-between">
               <label className="text-sm font-medium text-gray-300">Auto Captions</label>
               <Switch
+                aria-label="Auto captions"
                 checked={videoSettings.captions}
                 onCheckedChange={(checked) => handleSettingChange("captions", checked)}
               />
@@ -139,7 +144,7 @@ export function SettingsStep() {
           <Button
             variant="outline"
             onClick={() => dispatch({ type: "SET_STEP", step: 3 })}
-            className="border-white/20 text-white hover:bg-white/10"
+            className="border-white/20 text-white hover:bg-white/10 bg-transparent"
           >
             Back
           </Button>

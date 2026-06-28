@@ -6,8 +6,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Loader2, Zap, Mic, Sparkles } from "lucide-react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { useEffect } from "react"
 import { signIn } from "@/lib/actions"
 
 function SubmitButton() {
@@ -32,15 +30,9 @@ function SubmitButton() {
 }
 
 export default function LoginForm() {
-  const router = useRouter()
+  // On success the server action redirects to /dashboard, so we only render
+  // the {error} state here — no client-side navigation needed.
   const [state, formAction] = useActionState(signIn, null)
-
-  // Handle successful login by redirecting
-  useEffect(() => {
-    if (state?.success) {
-      router.push("/")
-    }
-  }, [state, router])
 
   return (
     <div className="w-full max-w-6xl mx-auto grid lg:grid-cols-2 gap-12 items-center">
@@ -117,6 +109,7 @@ export default function LoginForm() {
                   id="email"
                   name="email"
                   type="email"
+                  autoComplete="email"
                   placeholder="you@example.com"
                   required
                   className="bg-white/10 border-white/20 text-white placeholder:text-gray-400 backdrop-blur-sm focus:border-purple-400 focus:ring-purple-400/20"
@@ -130,6 +123,7 @@ export default function LoginForm() {
                   id="password"
                   name="password"
                   type="password"
+                  autoComplete="current-password"
                   required
                   className="bg-white/10 border-white/20 text-white backdrop-blur-sm focus:border-purple-400 focus:ring-purple-400/20"
                 />

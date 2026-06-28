@@ -3,14 +3,21 @@
 import type React from "react"
 
 import { createContext, useContext, useReducer, type ReactNode } from "react"
+import type { VideoSettings } from "@/lib/backgrounds"
+
+interface VoiceSettings {
+  voice?: string
+  speed?: number
+  [key: string]: unknown
+}
 
 interface Project {
   id?: string
   title: string
   description?: string
   script?: string
-  voice_settings?: any
-  video_settings?: any
+  voice_settings?: VoiceSettings
+  video_settings?: VideoSettings
   status?: string
 }
 
@@ -54,7 +61,7 @@ const initialState: WizardState = {
 function wizardReducer(state: WizardState, action: WizardAction): WizardState {
   switch (action.type) {
     case "SET_STEP":
-      return { ...state, currentStep: action.step }
+      return { ...state, currentStep: action.step, error: null }
     case "UPDATE_PROJECT":
       return {
         ...state,

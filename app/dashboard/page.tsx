@@ -24,17 +24,15 @@ export default async function Dashboard() {
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
 
-  // Fetch user's videos
-  const { data: videos } = await supabase
+  // Count the user's generated videos (exact count, no rows fetched)
+  const { count: completedVideosCount } = await supabase
     .from("generated_videos")
-    .select("*")
+    .select("*", { count: "exact", head: true })
     .eq("user_id", user.id)
-    .order("created_at", { ascending: false })
-    .limit(5)
 
   const stats = {
     totalProjects: projects?.length || 0,
-    completedVideos: videos?.length || 0,
+    completedVideos: completedVideosCount || 0,
     inProgress: projects?.filter((p) => p.status === "processing").length || 0,
   }
 

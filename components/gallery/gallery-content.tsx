@@ -1,38 +1,54 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { VideoGallery } from "@/components/gallery/video-gallery"
 import { BackgroundGallery } from "@/components/gallery/background-gallery"
 
+interface GalleryVideo {
+  id: string
+  filename: string
+  file_path: string
+  file_size: number
+  duration: number | null
+  thumbnail_path: string | null
+  created_at: string
+  background_url: string | null
+  background_type: string | null
+  projects: {
+    title: string
+    description: string | null
+    status: string
+  } | null
+}
+
+interface GalleryBackground {
+  id: string
+  filename: string
+  file_path: string
+  file_size: number
+  mime_type: string | null
+  created_at: string
+}
+
 interface GalleryContentProps {
-  initialVideos: any[]
-  initialBackgrounds: any[]
+  initialVideos: GalleryVideo[]
+  initialBackgrounds: GalleryBackground[]
 }
 
 export function GalleryContent({ initialVideos, initialBackgrounds }: GalleryContentProps) {
+  const router = useRouter()
   const [backgrounds, setBackgrounds] = useState(initialBackgrounds)
-
-  useEffect(() => {
-    console.log("[v0] Gallery Content - Initial Videos:", initialVideos)
-    console.log("[v0] Gallery Content - Videos count:", initialVideos?.length || 0)
-    console.log("[v0] Gallery Content - Initial Backgrounds:", initialBackgrounds)
-    console.log("[v0] Gallery Content - Backgrounds count:", initialBackgrounds?.length || 0)
-  }, [initialVideos, initialBackgrounds])
 
   useEffect(() => {
     setBackgrounds(initialBackgrounds)
   }, [initialBackgrounds])
 
-  const handleBackgroundUpload = async () => {
-    const response = await fetch("/api/backgrounds")
-    if (response.ok) {
-      const newBackgrounds = await response.json()
-      setBackgrounds(newBackgrounds)
-    } else {
-      // Fallback: reload the page
-      window.location.reload()
-    }
+  // BackgroundGallery already shows the new row optimistically. Re-fetch the
+  // server data so the authoritative list (and any other client) stays in sync.
+  const handleBackgroundUpload = () => {
+    router.refresh()
   }
 
   return (

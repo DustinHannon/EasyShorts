@@ -1,6 +1,6 @@
 "use client"
 
-import { useActionState } from "react"
+import { useActionState, useState } from "react"
 import { useFormStatus } from "react-dom"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -30,8 +30,21 @@ function SubmitButton() {
 }
 
 export default function SignUpForm() {
-  // Initialize with null as the initial state
+  // Initialize with null as the initial state. On a successful immediate
+  // session the server action redirects to /dashboard; otherwise it returns
+  // the "check your email" success message rendered below.
   const [state, formAction] = useActionState(signUp, null)
+
+  const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+
+  const passwordTooShort = password.length > 0 && password.length < 8
+  const passwordsMismatch = confirmPassword.length > 0 && confirmPassword !== password
+  const clientError = passwordTooShort
+    ? "Password must be at least 8 characters."
+    : passwordsMismatch
+      ? "Passwords do not match."
+      : null
 
   return (
     <div className="w-full max-w-6xl mx-auto grid lg:grid-cols-2 gap-12 items-center">
@@ -89,10 +102,19 @@ export default function SignUpForm() {
             <p className="text-lg text-gray-300">Create your free account</p>
           </div>
 
-          <form action={formAction} className="space-y-6">
-            {state?.error && (
+          <form
+            action={formAction}
+            onSubmit={(e) => {
+              // Backstop client-side validation; the server action re-validates.
+              if (password.length < 8 || password !== confirmPassword) {
+                e.preventDefault()
+              }
+            }}
+            className="space-y-6"
+          >
+            {(clientError || state?.error) && (
               <div className="bg-red-500/20 border border-red-500/50 text-red-200 px-4 py-3 rounded-lg backdrop-blur-sm">
-                {state.error}
+                {clientError ?? state?.error}
               </div>
             )}
 
@@ -111,6 +133,7 @@ export default function SignUpForm() {
                   id="email"
                   name="email"
                   type="email"
+                  autoComplete="email"
                   placeholder="you@example.com"
                   required
                   className="bg-white/10 border-white/20 text-white placeholder:text-gray-400 backdrop-blur-sm focus:border-purple-400 focus:ring-purple-400/20"
@@ -124,7 +147,27 @@ export default function SignUpForm() {
                   id="password"
                   name="password"
                   type="password"
+                  autoComplete="new-password"
                   required
+                  minLength={8}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="bg-white/10 border-white/20 text-white backdrop-blur-sm focus:border-purple-400 focus:ring-purple-400/20"
+                />
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-200">
+                  Confirm password
+                </label>
+                <Input
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  type="password"
+                  autoComplete="new-password"
+                  required
+                  minLength={8}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
                   className="bg-white/10 border-white/20 text-white backdrop-blur-sm focus:border-purple-400 focus:ring-purple-400/20"
                 />
               </div>

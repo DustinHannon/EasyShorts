@@ -113,6 +113,7 @@ export function VideoActions({ video, showLabels = false }: VideoActionsProps) {
         <Button
           size="sm"
           variant="destructive"
+          aria-label="Delete video"
           onClick={handleDelete}
           disabled={isPending}
           className="bg-red-600 hover:bg-red-700"
@@ -127,7 +128,12 @@ export function VideoActions({ video, showLabels = false }: VideoActionsProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="h-8 w-8 p-0 text-gray-400 hover:text-white" disabled={isPending}>
+        <Button
+          variant="ghost"
+          aria-label="More options"
+          className="h-8 w-8 p-0 text-gray-400 hover:text-white"
+          disabled={isPending}
+        >
           <MoreHorizontal className="h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>

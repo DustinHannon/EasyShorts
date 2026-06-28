@@ -5,12 +5,13 @@ import { WizardLayout } from "@/components/wizard/wizard-layout"
 import { WizardSteps } from "@/components/wizard/wizard-steps"
 
 interface CreateProjectPageProps {
-  params: {
+  params: Promise<{
     projectId: string
-  }
+  }>
 }
 
 export default async function CreateProjectPage({ params }: CreateProjectPageProps) {
+  const { projectId } = await params
   const supabase = await createClient()
   const {
     data: { user },
@@ -24,7 +25,7 @@ export default async function CreateProjectPage({ params }: CreateProjectPagePro
   const { data: project, error } = await supabase
     .from("projects")
     .select("*")
-    .eq("id", params.projectId)
+    .eq("id", projectId)
     .eq("user_id", user.id)
     .single()
 

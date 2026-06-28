@@ -1,11 +1,13 @@
 "use server"
 
-import { createServerClient } from "@supabase/ssr"
-import { cookies } from "next/headers"
+import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 
-// Update the signIn function to handle redirects properly
-export async function signIn(prevState: any, formData: FormData) {
+export type AuthState = { error?: string; success?: boolean | string }
+
+// Handle sign-in. On success this redirects server-side (full navigation);
+// callers should render the {error} state and let the action navigate.
+export async function signIn(prevState: AuthState | null, formData: FormData): Promise<AuthState> {
   // Check if formData is valid
   if (!formData) {
     return { error: "Form data is missing" }
@@ -19,24 +21,7 @@ export async function signIn(prevState: any, formData: FormData) {
     return { error: "Email and password are required" }
   }
 
-  const cookieStore = await cookies()
-
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            cookieStore.set(name, value, options)
-          })
-        },
-      },
-    },
-  )
+  const supabase = await createClient()
 
   try {
     const { error } = await supabase.auth.signInWithPassword({
@@ -45,19 +30,20 @@ export async function signIn(prevState: any, formData: FormData) {
     })
 
     if (error) {
-      return { error: error.message }
+      // Log the real reason server-side; never echo enumerable auth messages.
+      console.error("Sign in error:", error.message)
+      return { error: "Invalid email or password." }
     }
-
-    // Return success instead of redirecting directly
-    return { success: true }
   } catch (error) {
     console.error("Login error:", error)
     return { error: "An unexpected error occurred. Please try again." }
   }
+
+  // Full server-side redirect so the new session is reflected immediately.
+  redirect("/dashboard")
 }
 
-// Update the signUp function to handle potential null formData
-export async function signUp(prevState: any, formData: FormData) {
+export async function signUp(prevState: AuthState | null, formData: FormData): Promise<AuthState> {
   // Check if formData is valid
   if (!formData) {
     return { error: "Form data is missing" }
@@ -65,68 +51,65 @@ export async function signUp(prevState: any, formData: FormData) {
 
   const email = formData.get("email")
   const password = formData.get("password")
+  const confirmPassword = formData.get("confirmPassword")?.toString() ?? ""
 
   // Validate required fields
   if (!email || !password) {
     return { error: "Email and password are required" }
   }
 
-  const cookieStore = await cookies()
+  const passwordStr = password.toString()
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            cookieStore.set(name, value, options)
-          })
-        },
-      },
-    },
-  )
+  if (passwordStr.length < 8) {
+    return { error: "Password must be at least 8 characters." }
+  }
+
+  if (confirmPassword !== passwordStr) {
+    return { error: "Passwords do not match." }
+  }
+
+  const supabase = await createClient()
+
+  let hasSession = false
 
   try {
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email: email.toString(),
-      password: password.toString(),
+      password: passwordStr,
     })
 
     if (error) {
-      return { error: error.message }
+      // Log the real reason server-side; never echo enumerable messages
+      // like "User already registered".
+      console.error("Sign up error:", error.message)
+      return { error: "Could not create account." }
     }
 
-    return { success: "Check your email to confirm your account." }
+    // When email confirmation is disabled, signUp returns an active session.
+    hasSession = Boolean(data.session)
   } catch (error) {
     console.error("Sign up error:", error)
     return { error: "An unexpected error occurred. Please try again." }
   }
+
+  // Immediate session (autoconfirm) — go straight to the app.
+  if (hasSession) {
+    redirect("/dashboard")
+  }
+
+  return { success: "Check your email to confirm your account." }
 }
 
 export async function signOut() {
-  const cookieStore = await cookies()
+  const supabase = await createClient()
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            cookieStore.set(name, value, options)
-          })
-        },
-      },
-    },
-  )
+  try {
+    await supabase.auth.signOut()
+  } catch (error) {
+    // Best-effort: log, but still clear the route and send the user to login.
+    console.error("Sign out error:", error)
+  }
 
-  await supabase.auth.signOut()
+  // redirect() throws NEXT_REDIRECT — keep it OUTSIDE the try/catch so it propagates.
   redirect("/auth/login")
 }

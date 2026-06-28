@@ -31,8 +31,8 @@ export function WizardLayout({ children }: WizardLayoutProps) {
               <div className="h-6 w-px bg-white/20" />
               <h1 className="text-xl font-semibold text-white">{state.project.title || "New Project"}</h1>
             </div>
-            <Button variant="ghost" size="sm" asChild className="text-gray-300 hover:text-white">
-              <Link href="/dashboard">
+            <Button variant="ghost" size="sm" asChild className="text-gray-300 hover:text-white" aria-label="Home">
+              <Link href="/dashboard" aria-label="Home">
                 <Home className="w-4 h-4" />
               </Link>
             </Button>

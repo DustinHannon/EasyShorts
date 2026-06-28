@@ -41,6 +41,16 @@ export function VoiceStep() {
     }
   }, [state.project.voice_settings, dispatch])
 
+  // Revoke the object URL for the audio preview when it is replaced or the
+  // component unmounts, to avoid leaking blobs.
+  useEffect(() => {
+    return () => {
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl)
+      }
+    }
+  }, [audioUrl])
+
   const handleVoiceChange = async (voice: string) => {
     const newSettings = { ...voiceSettings, voice }
 
@@ -49,7 +59,6 @@ export function VoiceStep() {
     if (state.project.id) {
       try {
         await updateProject(state.project.id, { voice_settings: newSettings })
-        console.log("Voice settings saved successfully:", newSettings)
       } catch (error) {
         console.error("Failed to save voice settings:", error)
         dispatch({ type: "SET_ERROR", error: "Failed to save voice settings" })
@@ -68,7 +77,6 @@ export function VoiceStep() {
     if (state.project.id) {
       try {
         await updateProject(state.project.id, { voice_settings: newSettings })
-        console.log("Speed settings saved successfully:", newSettings)
       } catch (error) {
         console.error("Failed to save speed settings:", error)
         dispatch({ type: "SET_ERROR", error: "Failed to save speed settings" })
@@ -163,9 +171,11 @@ export function VoiceStep() {
         )}
 
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-300">Voice Selection</label>
+          <label id="voice-select-label" className="block text-sm font-medium text-gray-300">
+            Voice Selection
+          </label>
           <Select value={voiceSettings.voice} onValueChange={handleVoiceChange}>
-            <SelectTrigger className="bg-white/5 border-white/20 text-white">
+            <SelectTrigger aria-label="Voice selection" className="bg-white/5 border-white/20 text-white">
               <SelectValue>
                 {voiceSettings.voice
                   ? voices.find((v) => v.id === voiceSettings.voice)?.name || voiceSettings.voice
@@ -196,6 +206,8 @@ export function VoiceStep() {
               min={0.5}
               max={2.0}
               step={0.1}
+              aria-label="Narration speed"
+              aria-valuetext={`${(voiceSettings.speed || 1.0).toFixed(1)}x speed`}
               className="w-full"
             />
             <div className="flex justify-between text-xs text-gray-400">
@@ -270,7 +282,7 @@ export function VoiceStep() {
           <Button
             variant="outline"
             onClick={() => dispatch({ type: "SET_STEP", step: 1 })}
-            className="border-white/20 text-white hover:bg-white/10"
+            className="border-white/20 text-white hover:bg-white/10 bg-transparent"
           >
             Back
           </Button>

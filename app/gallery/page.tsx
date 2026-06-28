@@ -5,6 +5,32 @@ import { Plus, ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import { GalleryContent } from "@/components/gallery/gallery-content"
 
+interface VideoRow {
+  id: string
+  url: string
+  size: number | null
+  duration: number | null
+  format: string | null
+  created_at: string
+  background_url: string | null
+  background_type: string | null
+  project_id: string | null
+  projects: {
+    title: string | null
+    description: string | null
+    status: string | null
+  } | null
+}
+
+interface BackgroundRow {
+  id: string
+  name: string
+  url: string
+  size: number | null
+  type: string | null
+  created_at: string
+}
+
 export default async function GalleryPage() {
   const supabase = await createClient()
   const {
@@ -15,18 +41,18 @@ export default async function GalleryPage() {
     redirect("/auth/login")
   }
 
-  console.log("[v0] Gallery: Fetching data for user:", user.id)
-
   const { data: videosData, error: videosError } = await supabase
     .from("generated_videos")
-    .select("*")
+    .select("*, projects(title, description, status)")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
 
-  console.log("[v0] Gallery: Videos query result:", { videosData, videosError })
+  if (videosError) {
+    console.error("Gallery: failed to load videos", videosError)
+  }
 
   const videos =
-    videosData?.map((video) => {
+    (videosData as VideoRow[] | null)?.map((video) => {
       const fallbackTitle = `Video-${video.created_at.split("T")[0]}`
       const filename = `${fallbackTitle}.${video.format || "mp4"}`
 
@@ -40,10 +66,15 @@ export default async function GalleryPage() {
         created_at: video.created_at,
         background_url: video.background_url,
         background_type: video.background_type,
+        projects: video.projects
+          ? {
+              title: video.projects.title || fallbackTitle,
+              description: video.projects.description ?? null,
+              status: video.projects.status || "unknown",
+            }
+          : null,
       }
     }) || []
-
-  console.log("[v0] Gallery: Processed videos:", videos)
 
   const { data: backgroundsData, error: backgroundsError } = await supabase
     .from("backgrounds")
@@ -51,10 +82,12 @@ export default async function GalleryPage() {
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
 
-  console.log("[v0] Gallery: Backgrounds query result:", { backgroundsData, backgroundsError })
+  if (backgroundsError) {
+    console.error("Gallery: failed to load backgrounds", backgroundsError)
+  }
 
   const backgrounds =
-    backgroundsData?.map((bg) => ({
+    (backgroundsData as BackgroundRow[] | null)?.map((bg) => ({
       id: bg.id,
       filename: bg.name,
       file_path: bg.url,

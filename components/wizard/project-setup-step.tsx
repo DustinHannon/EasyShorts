@@ -20,6 +20,11 @@ export function ProjectSetupStep() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
+    // Guard against duplicate submissions (e.g. double-click)
+    if (isSubmitting) {
+      return
+    }
+
     if (!state.project.title.trim()) {
       dispatch({ type: "SET_ERROR", error: "Project title is required" })
       return
@@ -32,9 +37,10 @@ export function ProjectSetupStep() {
       const project = await createProject(state.project.title, state.project.description)
       dispatch({ type: "UPDATE_PROJECT", updates: { id: project.id } })
       router.push(`/create/${project.id}`)
+      // Intentionally leave isSubmitting true while navigation resolves so the
+      // form cannot be submitted again and create a duplicate project.
     } catch (error) {
       dispatch({ type: "SET_ERROR", error: "Failed to create project" })
-    } finally {
       setIsSubmitting(false)
     }
   }

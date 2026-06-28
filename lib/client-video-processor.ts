@@ -30,25 +30,32 @@ const qualitySettings = {
   "4k": { scale: 2, bitrate: "20M", profile: "high", level: "5.1" },
 }
 
+// Reuse one FFmpeg instance (and its ~30MB WASM core) across generations so a
+// second video does not re-download/re-init the core. The single-threaded UMD
+// core is loaded once; per-generation progress is wired via add/remove listener
+// in createVideo so handlers never stack on the shared instance.
+let sharedFFmpeg: FFmpeg | null = null
+let baseListenersBound = false
+
 export class ClientVideoProcessor {
   private ffmpeg: FFmpeg
   private filesInVFS: Set<string> = new Set()
 
   constructor() {
-    this.ffmpeg = new FFmpeg()
+    sharedFFmpeg = sharedFFmpeg ?? new FFmpeg()
+    this.ffmpeg = sharedFFmpeg
   }
 
   private async initFFmpeg() {
     if (!this.ffmpeg.loaded) {
       const baseURL = "https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd"
 
-      this.ffmpeg.on("log", ({ message }) => {
-        console.log("FFmpeg WebAssembly:", message)
-      })
-
-      this.ffmpeg.on("progress", ({ progress, time }) => {
-        console.log("FFmpeg Progress:", { progress: Math.round(progress * 100), time })
-      })
+      if (!baseListenersBound) {
+        this.ffmpeg.on("log", ({ message }) => {
+          console.log("FFmpeg WebAssembly:", message)
+        })
+        baseListenersBound = true
+      }
 
       try {
         console.log("🔧 Loading FFmpeg WebAssembly core...")
@@ -362,7 +369,9 @@ export class ClientVideoProcessor {
     console.log("🎬 Executing FFmpeg with args:", ffmpegArgs)
 
     let lastProgress = 50
-    this.ffmpeg.on("progress", ({ progress }) => {
+    // Named handler so it can be removed after this run — the FFmpeg instance is
+    // shared across generations, so an anonymous listener would stack each time.
+    const progressHandler = ({ progress }: { progress: number; time: number }) => {
       const currentProgress = Math.min(95, 50 + progress * 45)
       if (currentProgress > lastProgress + 5) {
         lastProgress = currentProgress
@@ -372,7 +381,8 @@ export class ClientVideoProcessor {
           message: `Processing video... ${Math.round(progress * 100)}%`,
         })
       }
-    })
+    }
+    this.ffmpeg.on("progress", progressHandler)
 
     try {
       console.log("🎬 Starting FFmpeg execution...")
@@ -402,6 +412,8 @@ export class ClientVideoProcessor {
       console.error("❌ FFmpeg execution failed:", error)
       console.error("❌ FFmpeg args that failed:", ffmpegArgs)
       throw new Error(`FFmpeg execution failed: ${error}`)
+    } finally {
+      this.ffmpeg.off("progress", progressHandler)
     }
 
     const outputData = await this.safeReadFile("output.mp4")
@@ -411,23 +423,5 @@ export class ClientVideoProcessor {
 
     console.log(`✅ Video processing complete: ${outputData.length} bytes`)
     return new Blob([outputData], { type: "video/mp4" })
-  }
-
-  private parseBitrateToKbps(bitrate: string): number {
-    const match = bitrate.match(/^(\d+)([MK]?)$/i)
-    if (!match) throw new Error(`Invalid bitrate format: ${bitrate}`)
-
-    const value = Number.parseInt(match[1])
-    const unit = match[2]?.toUpperCase() || ""
-
-    switch (unit) {
-      case "M":
-        return value * 1000
-      case "K":
-      case "":
-        return value
-      default:
-        throw new Error(`Unknown bitrate unit: ${unit}`)
-    }
   }
 }
