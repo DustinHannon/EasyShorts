@@ -106,8 +106,9 @@ Output should be pure spoken dialogue that flows naturally when read aloud.`
               content: prompt,
             },
           ],
-          max_tokens: 2000,
-          temperature: 0.7,
+          // gpt-5.x (Azure AI Foundry) requires max_completion_tokens, not
+          // max_tokens, and only supports the default temperature.
+          max_completion_tokens: 2000,
         }),
         signal: controller.signal,
       })
