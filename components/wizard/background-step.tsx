@@ -307,7 +307,7 @@ export function BackgroundStep() {
                 }`}
                 onClick={() => setSelectedBackground(bg.id)}
               >
-                <img src={bg.url || "/placeholder.svg"} alt={bg.name} className="w-full h-32 object-cover" />
+                <img src={bg.url || "/placeholder.svg"} alt={bg.name} crossOrigin="anonymous" className="w-full h-32 object-cover" />
                 <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                   <span className="text-white text-sm font-medium">{bg.name}</span>
                 </div>
@@ -343,6 +343,7 @@ export function BackgroundStep() {
                   <img
                     src={bg.url || "/placeholder.svg"}
                     alt={bg.name}
+                    crossOrigin="anonymous"
                     className="w-full h-32 object-contain bg-black/20"
                   />
                   <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
@@ -384,6 +385,7 @@ export function BackgroundStep() {
                   <img
                     src={imageUrl || "/placeholder.svg"}
                     alt={`Generated ${index + 1}`}
+                    crossOrigin="anonymous"
                     className="w-full h-32 object-cover"
                   />
                   <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">

@@ -49,6 +49,7 @@ let baseListenersBound = false
 export class ClientVideoProcessor {
   private ffmpeg: FFmpeg
   private filesInVFS: Set<string> = new Set()
+  private isMultiThread = false
 
   constructor() {
     sharedFFmpeg = sharedFFmpeg ?? new FFmpeg()
@@ -56,27 +57,46 @@ export class ClientVideoProcessor {
   }
 
   private async initFFmpeg() {
-    if (!this.ffmpeg.loaded) {
-      const baseURL = "https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd"
+    if (this.ffmpeg.loaded) return
 
-      if (!baseListenersBound) {
-        this.ffmpeg.on("log", ({ message }) => {
-          console.log("FFmpeg WebAssembly:", message)
+    if (!baseListenersBound) {
+      this.ffmpeg.on("log", ({ message }) => {
+        console.log("FFmpeg WebAssembly:", message)
+      })
+      baseListenersBound = true
+    }
+
+    // Multi-thread needs SharedArrayBuffer, which requires the page to be
+    // cross-origin isolated (COOP/COEP on /create). The MT core is self-hosted
+    // same-origin (/public/ffmpeg) so COEP doesn't block it.
+    this.isMultiThread =
+      typeof SharedArrayBuffer !== "undefined" &&
+      typeof self !== "undefined" &&
+      self.crossOriginIsolated === true
+
+    try {
+      if (this.isMultiThread) {
+        console.log("🔧 Loading FFmpeg multi-thread core (crossOriginIsolated)...")
+        await this.ffmpeg.load({
+          coreURL: "/ffmpeg/ffmpeg-core.js",
+          wasmURL: "/ffmpeg/ffmpeg-core.wasm",
+          workerURL: "/ffmpeg/ffmpeg-core.worker.js",
         })
-        baseListenersBound = true
-      }
-
-      try {
-        console.log("🔧 Loading FFmpeg WebAssembly core...")
+        console.log("✅ FFmpeg loaded (multi-thread)")
+      } else {
+        // Stage A fallback: single-thread core from unpkg. Removed once the
+        // multi-thread path is proven on Vercel.
+        console.warn("⚠️ Not crossOriginIsolated — using single-thread core (fallback)")
+        const baseURL = "https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd"
         await this.ffmpeg.load({
           coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
           wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, "application/wasm"),
         })
-        console.log("✅ FFmpeg WebAssembly loaded successfully")
-      } catch (error) {
-        console.error("❌ Failed to load FFmpeg WebAssembly:", error)
-        throw new Error(`FFmpeg WebAssembly initialization failed: ${error}`)
+        console.log("✅ FFmpeg loaded (single-thread fallback)")
       }
+    } catch (error) {
+      console.error("❌ Failed to load FFmpeg WebAssembly:", error)
+      throw new Error(`FFmpeg WebAssembly initialization failed: ${error}`)
     }
   }
 
@@ -361,6 +381,10 @@ export class ClientVideoProcessor {
       qualityConfig.preset,
       "-crf",
       String(qualityConfig.crf),
+      // Multi-thread encode: cap threads at 4 (libx264-in-wasm gets unstable higher).
+      ...(this.isMultiThread
+        ? ["-threads", String(Math.min(typeof navigator !== "undefined" ? navigator.hardwareConcurrency || 4 : 4, 4))]
+        : []),
       "-c:a",
       "aac",
       "-b:a",

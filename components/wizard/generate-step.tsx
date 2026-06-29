@@ -439,6 +439,7 @@ export function GenerateStep() {
                     <video
                       src={videoUrl}
                       controls
+                      crossOrigin="anonymous"
                       className="w-full h-full object-cover"
                       poster={
                         state.project.video_settings?.background?.startsWith("saved-")
@@ -452,6 +453,7 @@ export function GenerateStep() {
                     <video
                       src={localVideoUrl}
                       controls
+                      crossOrigin="anonymous"
                       className="w-full h-full object-cover"
                       poster={
                         state.project.video_settings?.background?.startsWith("saved-")
