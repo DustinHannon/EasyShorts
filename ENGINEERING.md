@@ -156,6 +156,7 @@ Row Level Security (RLS) policies ensure data isolation:
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Supabase anonymous key
 - `AZURE_AI_KEY` — Azure AI Foundry API key (server-side only)
 - `BLOB_READ_WRITE_TOKEN` — Vercel Blob storage token
+- `OPENAI_API_KEY` — (optional) OpenAI key for audio-synced captions via Whisper word timestamps; without it, captions fall back to estimated timing
 
 ### Local Development
 ```bash

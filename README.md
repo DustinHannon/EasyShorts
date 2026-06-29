@@ -60,6 +60,7 @@ pnpm dev
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anonymous/publishable key |
 | `AZURE_AI_KEY` | Yes | Azure AI Foundry API key (server-side only) |
 | `BLOB_READ_WRITE_TOKEN` | Yes | Vercel Blob storage token |
+| `OPENAI_API_KEY` | No | OpenAI key for audio-synced captions (Whisper word timestamps). Without it, captions fall back to estimated timing. |
 
 ### Database Setup
 
@@ -74,10 +75,13 @@ This creates 4 tables with RLS policies: `profiles`, `projects`, `backgrounds`, 
 
 ## Key Features
 
-- **AI Script Generation** - Context-aware content creation with GPT-5.4
+- **Hook-first AI Scripts** - Retention-optimized, hook-first scripts with GPT-5.4, plus a live duration/word-count estimate and a sub-60s monetization warning
+- **Niche Templates** - One-click presets for top faceless formats (Reddit story, scary story, motivation, finance, did-you-know, history)
 - **Multi-voice TTS** - Natural speech synthesis via gpt-4o-mini-tts
-- **Custom Backgrounds** - Upload or AI-generate backgrounds with gpt-image-1.5
-- **Real-time Captions** - Synchronized text overlays
+- **Background Library** - 24 built-in presets across 6 categories, plus upload or AI-generate (gpt-image-1.5)
+- **Audio-synced Captions** - Word-level timing via OpenAI Whisper (`OPENAI_API_KEY`), with graceful fallback to estimated timing
+- **Editable Review** - Edit the script on the final step before rendering
+- **Client-side Render** - FFmpeg.wasm compose in the browser with selectable quality tiers (720p/1080p/4K)
 - **Project Management** - Dashboard with creation history
 - **Responsive Design** - Mobile-optimized interface
 
@@ -88,6 +92,7 @@ This creates 4 tables with RLS policies: `profiles`, `projects`, `backgrounds`, 
 | `/api/generate-script` | POST | Generate video script with AI (rate-limited per user/day) |
 | `/api/generate-speech` | POST | Convert text to speech (rate-limited per user/day) |
 | `/api/generate-image` | POST | Generate background image with gpt-image-1.5 (rate-limited per user/day) |
+| `/api/transcribe` | POST | Transcribe the voiceover to word-level timestamps for synced captions (OpenAI Whisper; degrades gracefully if `OPENAI_API_KEY` is unset) |
 | `/api/video/upload` | POST | Issue a Vercel Blob client-upload token for the final video |
 | `/api/video/record` | POST | Persist generated-video metadata to the database |
 | `/api/background/upload` | POST | Issue a Vercel Blob client-upload token for a custom background |
