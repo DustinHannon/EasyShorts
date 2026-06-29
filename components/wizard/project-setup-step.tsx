@@ -50,7 +50,7 @@ export function ProjectSetupStep() {
       <CardHeader>
         <CardTitle className="text-2xl text-white">Create New Project</CardTitle>
         <CardDescription className="text-gray-300">
-          Let's start by setting up your video project with some basic information.
+          Let&apos;s start by setting up your video project with some basic information.
         </CardDescription>
       </CardHeader>
       <CardContent>

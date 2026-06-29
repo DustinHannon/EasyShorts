@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -117,7 +118,7 @@ export function VideoGallery({ videos }: VideoGalleryProps) {
             asChild
             className="bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700"
           >
-            <a href="/create">Create Video</a>
+            <Link href="/create">Create Video</Link>
           </Button>
         </CardContent>
       </Card>

@@ -133,7 +133,7 @@ export default function LoginForm() {
             <SubmitButton />
 
             <div className="text-center text-gray-300">
-              Don't have an account?{" "}
+              Don&apos;t have an account?{" "}
               <Link
                 href="/auth/sign-up"
                 className="text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-purple-400 hover:from-pink-300 hover:to-purple-300 font-medium"
