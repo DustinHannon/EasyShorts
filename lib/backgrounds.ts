@@ -73,6 +73,8 @@ export interface VideoSettings {
   // The wizard stores duration as a Select string ("auto"/"15"/"30"/"60"); the
   // record route coerces it to an integer. Allow both shapes.
   duration?: string | number
+  // Ken Burns background animation (default static).
+  animation?: "none" | "zoom-in" | "zoom-out" | "pan"
   [key: string]: unknown
 }
 

@@ -138,6 +138,33 @@ export function SettingsStep() {
             </div>
             <p className="text-xs text-gray-400">Automatically generate captions from your script</p>
           </div>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-300">Background Animation</label>
+            <Select
+              value={videoSettings.animation ?? "none"}
+              onValueChange={(value) => handleSettingChange("animation", value)}
+            >
+              <SelectTrigger aria-label="Background animation" className="bg-white/5 border-white/20 text-white">
+                <SelectValue placeholder="None (static)" />
+              </SelectTrigger>
+              <SelectContent className="bg-slate-800 border-slate-700">
+                <SelectItem value="none" className="text-white">
+                  None (static)
+                </SelectItem>
+                <SelectItem value="zoom-in" className="text-white">
+                  Ken Burns — Zoom In
+                </SelectItem>
+                <SelectItem value="zoom-out" className="text-white">
+                  Ken Burns — Zoom Out
+                </SelectItem>
+                <SelectItem value="pan" className="text-white">
+                  Ken Burns — Pan
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-gray-400">Slow motion on the background to hold attention (a touch slower to render)</p>
+          </div>
         </div>
 
         <div className="flex justify-between">

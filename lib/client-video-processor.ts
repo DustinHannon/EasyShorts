@@ -14,6 +14,8 @@ export interface VideoProcessingOptions {
   // Real word-level timings from transcription; when present, captions are
   // aligned to the audio instead of estimated from words-per-second.
   wordTimings?: WordTiming[]
+  // Ken Burns background animation; defaults to static ("none").
+  animation?: "none" | "zoom-in" | "zoom-out" | "pan"
 }
 
 export interface ProcessingProgress {
@@ -211,6 +213,7 @@ export class ClientVideoProcessor {
         dimensions,
         qualityConfig,
         drawtextFilters,
+        animation: options.animation,
         onProgress,
       })
 
@@ -304,9 +307,10 @@ export class ClientVideoProcessor {
     dimensions: { width: number; height: number }
     qualityConfig: { scale: number; profile: string; preset: string; crf: number }
     drawtextFilters: string[]
+    animation?: "none" | "zoom-in" | "zoom-out" | "pan"
     onProgress?: (progress: ProcessingProgress) => void
   }): Promise<Blob> {
-    const { dimensions, qualityConfig, drawtextFilters, onProgress } = options
+    const { dimensions, qualityConfig, drawtextFilters, animation, onProgress } = options
 
     const scaledWidth = Math.round(dimensions.width * qualityConfig.scale)
     const scaledHeight = Math.round(dimensions.height * qualityConfig.scale)
@@ -318,9 +322,34 @@ export class ClientVideoProcessor {
       captionFiltersCount: drawtextFilters.length,
     })
 
-    // 24fps: a static-background video only changes when captions pop in, so
-    // 24fps looks identical to 30fps while encoding ~20% fewer frames (faster).
-    const baseFilter = `[0:v]scale=${scaledWidth}:${scaledHeight}:force_original_aspect_ratio=increase,crop=${scaledWidth}:${scaledHeight},fps=24[video]`
+    // Base video filter at 24fps. For Ken Burns (zoom/pan), upscale first with
+    // lanczos so zoompan's integer-pixel motion becomes smooth sub-pixel motion,
+    // then zoompan downsamples to the output size. d=99999 + -shortest gives one
+    // continuous move for the whole clip (no per-image reset). Static otherwise.
+    const kenBurns = animation && animation !== "none" ? animation : null
+    let baseFilter: string
+    if (kenBurns) {
+      // Keep the upscale buffer modest (WASM memory); smaller factor for 4K.
+      const factor = scaledWidth * scaledHeight > 2_500_000 ? 2 : 3
+      const even = (n: number) => {
+        const v = Math.round(n)
+        return v % 2 === 0 ? v : v + 1
+      }
+      const upW = even(scaledWidth * factor)
+      const upH = even(scaledHeight * factor)
+      const centered = "x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'"
+      const zoompan =
+        kenBurns === "zoom-out"
+          ? `z='if(eq(on,1),1.5,max(zoom-0.0006,1.0))':${centered}`
+          : kenBurns === "pan"
+            ? "z='1.2':x='(iw-iw/zoom)*on/1500':y='ih/2-(ih/zoom/2)'"
+            : `z='min(zoom+0.0006,1.5)':${centered}`
+      baseFilter = `[0:v]scale=${upW}:${upH}:force_original_aspect_ratio=increase:flags=lanczos,crop=${upW}:${upH},setsar=1,zoompan=${zoompan}:d=99999:s=${scaledWidth}x${scaledHeight}:fps=24[video]`
+    } else {
+      // Static: a still background only changes when captions pop in, so 24fps
+      // looks identical to 30fps while encoding ~20% fewer frames (faster).
+      baseFilter = `[0:v]scale=${scaledWidth}:${scaledHeight}:force_original_aspect_ratio=increase,crop=${scaledWidth}:${scaledHeight},fps=24[video]`
+    }
 
     let filterComplex: string
     let mapVideo: string

@@ -207,6 +207,7 @@ export function GenerateStep() {
           projectId: state.project.id,
           voiceSpeed: state.project.voice_settings?.speed || 1.0,
           wordTimings,
+          animation: state.project.video_settings?.animation,
         },
         (progress) => {
           setGenerationProgress(progress)
