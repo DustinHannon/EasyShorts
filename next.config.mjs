@@ -16,7 +16,10 @@ const csp = [
   "img-src 'self' data: blob: https:",
   "media-src 'self' blob: https:",
   "font-src 'self' data:",
-  `connect-src 'self' https://unpkg.com https://*.public.blob.vercel-storage.com https://*.supabase.co wss://*.supabase.co ${supabaseConnect}`,
+  // `blob:` is REQUIRED: FFmpeg.wasm's toBlobURL turns the core/wasm into blob:
+  // URLs that ffmpeg.load() (and the audio download) then fetch — without it,
+  // browser-side video generation fails with "Failed to fetch".
+  `connect-src 'self' blob: https://unpkg.com https://*.public.blob.vercel-storage.com https://*.supabase.co wss://*.supabase.co ${supabaseConnect}`,
   "worker-src 'self' blob:",
   "frame-ancestors 'none'",
   "base-uri 'self'",
