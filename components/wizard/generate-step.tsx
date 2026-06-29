@@ -9,6 +9,7 @@ import { Loader2, Play, Download, Share, RefreshCw, CheckCircle } from "lucide-r
 import { ClientVideoProcessor, type ProcessingProgress } from "@/lib/client-video-processor"
 import { createClient } from "@/lib/supabase/client"
 import { resolveBackgroundUrl } from "@/lib/backgrounds"
+import type { WordTiming } from "@/lib/captions"
 import { upload } from "@vercel/blob/client" // Import client upload function
 import { useRouter } from "next/navigation"
 
@@ -48,7 +49,7 @@ export function GenerateStep() {
     }
   }, [localVideoBlob])
 
-  const generateFullAudio = async (): Promise<string> => {
+  const generateFullAudio = async (): Promise<Blob> => {
     try {
       const response = await fetch("/api/generate-speech", {
         method: "POST",
@@ -68,11 +69,30 @@ export function GenerateStep() {
         throw new Error(`Audio generation failed (${response.status}): ${errorText || response.statusText}`)
       }
 
-      const audioBlob = await response.blob()
-      return URL.createObjectURL(audioBlob)
+      return await response.blob()
     } catch (error) {
       console.error("Audio generation error:", error)
       throw new Error(`Failed to generate audio: ${error instanceof Error ? error.message : "Unknown error"}`)
+    }
+  }
+
+  // Transcribe the voiceover for real word-level caption timing. Graceful:
+  // returns undefined on any failure (no key, error, timeout) so the processor
+  // falls back to estimated timing and video generation is never blocked.
+  const fetchWordTimings = async (audioBlob: Blob): Promise<WordTiming[] | undefined> => {
+    try {
+      const fd = new FormData()
+      fd.append("file", audioBlob, "audio.mp3")
+      const res = await fetch("/api/transcribe", { method: "POST", body: fd })
+      if (!res.ok) return undefined
+      const data = await res.json()
+      if (Array.isArray(data?.words) && data.words.length > 0) {
+        return data.words as WordTiming[]
+      }
+      return undefined
+    } catch (error) {
+      console.warn("Caption sync unavailable; using estimated timing", error)
+      return undefined
     }
   }
 
@@ -157,15 +177,23 @@ export function GenerateStep() {
       await updateProject(state.project.id, { status: "processing" })
 
       setGenerationProgress({ progress: 10, stage: "audio", message: "Generating full audio..." })
-      const fullAudioUrl = await generateFullAudio()
+      const audioBlob = await generateFullAudio()
+      const fullAudioUrl = URL.createObjectURL(audioBlob)
       setAudioUrl(fullAudioUrl)
 
-      setGenerationProgress({ progress: 20, stage: "background", message: "Resolving background..." })
+      const captionsEnabled = state.project.video_settings?.captions !== false
+
+      // Real audio-synced captions from word timestamps (graceful fallback inside).
+      let wordTimings: WordTiming[] | undefined
+      if (captionsEnabled) {
+        setGenerationProgress({ progress: 18, stage: "captions", message: "Syncing captions to the audio..." })
+        wordTimings = await fetchWordTimings(audioBlob)
+      }
+
+      setGenerationProgress({ progress: 25, stage: "background", message: "Resolving background..." })
       const backgroundUrl = await getBackgroundUrl()
 
       const processor = new ClientVideoProcessor()
-
-      const captionsEnabled = state.project.video_settings?.captions !== false
 
       const videoBlob = await processor.processVideo(
         {
@@ -177,6 +205,7 @@ export function GenerateStep() {
           captions: captionsEnabled,
           projectId: state.project.id,
           voiceSpeed: state.project.voice_settings?.speed || 1.0,
+          wordTimings,
         },
         (progress) => {
           setGenerationProgress(progress)

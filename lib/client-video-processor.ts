@@ -1,5 +1,6 @@
 import { FFmpeg } from "@ffmpeg/ffmpeg"
 import { toBlobURL } from "@ffmpeg/util"
+import { buildCaptionFiltersFromTimings, type WordTiming } from "@/lib/captions"
 
 export interface VideoProcessingOptions {
   audioUrl: string
@@ -10,6 +11,9 @@ export interface VideoProcessingOptions {
   captions: boolean
   projectId: string
   voiceSpeed?: number
+  // Real word-level timings from transcription; when present, captions are
+  // aligned to the audio instead of estimated from words-per-second.
+  wordTimings?: WordTiming[]
 }
 
 export interface ProcessingProgress {
@@ -186,18 +190,21 @@ export class ClientVideoProcessor {
       let drawtextFilters: string[] = []
       if (captions && fontData) {
         onProgress?.({ stage: "captions", progress: 35, message: "Generating captions..." })
-        const voiceSpeed = options.voiceSpeed || 1.0
-        console.log(`📝 Using voice speed ${voiceSpeed}x for caption timing`)
-        drawtextFilters = this.generateCaptionFilters(
-          options.script,
-          {
-            width: dimensions.width * qualityConfig.scale,
-            height: dimensions.height * qualityConfig.scale,
-          },
-          voiceSpeed,
-        )
-        console.log("📝 Generated caption filters:", drawtextFilters.length, "filters")
-        console.log("📝 First few caption filters:", drawtextFilters.slice(0, 3))
+        const captionDims = {
+          width: dimensions.width * qualityConfig.scale,
+          height: dimensions.height * qualityConfig.scale,
+        }
+        if (options.wordTimings && options.wordTimings.length > 0) {
+          // Real audio-aligned captions from transcription word timestamps.
+          drawtextFilters = buildCaptionFiltersFromTimings(options.wordTimings, captionDims)
+          console.log("📝 Audio-synced captions:", drawtextFilters.length, "phrases from", options.wordTimings.length, "words")
+        }
+        if (drawtextFilters.length === 0) {
+          // Fallback: estimate timing from word count x voice speed (legacy).
+          const voiceSpeed = options.voiceSpeed || 1.0
+          drawtextFilters = this.generateCaptionFilters(options.script, captionDims, voiceSpeed)
+          console.log("📝 Estimated caption timing (no word timestamps):", drawtextFilters.length, "filters")
+        }
       } else {
         console.log("📝 Skipping caption generation - captions:", captions, "fontData:", !!fontData)
       }
