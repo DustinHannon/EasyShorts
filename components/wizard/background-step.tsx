@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Checkbox } from "@/components/ui/checkbox"
 import { useWizard } from "./wizard-provider"
 import { updateProject } from "@/lib/supabase/actions"
+import { BACKGROUND_PRESETS } from "@/lib/backgrounds"
 import { createClient } from "@/lib/supabase/client"
 import { Loader2, Upload, Wand2, Trash2, Bookmark } from "lucide-react"
 
@@ -34,12 +35,8 @@ export function BackgroundStep() {
   const [isUploading, setIsUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const backgrounds = [
-    { id: "default", name: "Abstract Gradient", preview: "/abstract-background.png" },
-    { id: "nature", name: "Mountain Lake", preview: "/serene-mountain-lake.png" },
-    { id: "city", name: "City Skyline", preview: "/vibrant-city-skyline.png" },
-    { id: "space", name: "Space Stars", preview: "/space-stars.png" },
-  ]
+  // Pre-made background library (config-driven; see lib/backgrounds.ts).
+  const backgrounds = BACKGROUND_PRESETS
 
   useEffect(() => {
     const loadSavedBackgrounds = async () => {
@@ -310,7 +307,7 @@ export function BackgroundStep() {
                 }`}
                 onClick={() => setSelectedBackground(bg.id)}
               >
-                <img src={bg.preview || "/placeholder.svg"} alt={bg.name} className="w-full h-32 object-cover" />
+                <img src={bg.url || "/placeholder.svg"} alt={bg.name} className="w-full h-32 object-cover" />
                 <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                   <span className="text-white text-sm font-medium">{bg.name}</span>
                 </div>
