@@ -29,6 +29,11 @@ export function ScriptStep() {
   const safeDuration = String(duration || "60")
   const safeAudience = String(audience || "general")
 
+  // Live duration estimate from the current script (~2.5 words/sec spoken).
+  const scriptText = (state.project.script || "").trim()
+  const scriptWordCount = scriptText ? scriptText.split(/\s+/).length : 0
+  const estimatedSeconds = Math.round(scriptWordCount / 2.5)
+
   const handleGenerateScript = async () => {
     const safeTopic = String(topic || "").trim()
     if (!safeTopic) {
@@ -254,9 +259,18 @@ export function ScriptStep() {
             placeholder="Write your script here or use the AI generator above..."
             className="bg-white/5 border-white/20 text-white placeholder:text-gray-500 min-h-[300px]"
           />
-          <p className="text-xs text-gray-400">
-            Tip: Keep your script engaging and under 60 seconds for best results on social media.
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+            <span className="text-gray-400">
+              {scriptWordCount > 0
+                ? `${scriptWordCount} words · ~${estimatedSeconds}s spoken`
+                : "Tip: open with a strong hook in the first 3 seconds."}
+            </span>
+            {scriptWordCount > 0 && estimatedSeconds < 60 && (
+              <span className="text-amber-400">
+                Under 60s won&apos;t qualify for TikTok Creator Rewards — a longer script earns more.
+              </span>
+            )}
+          </div>
         </div>
 
         <div className="flex justify-between">

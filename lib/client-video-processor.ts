@@ -150,26 +150,18 @@ export class ClientVideoProcessor {
 
       onProgress?.({ stage: "preparing", progress: 15, message: "Downloading assets..." })
 
-      console.log("📥 Downloading audio from:", options.audioUrl)
-      const audioData = await this.downloadAsset(options.audioUrl)
-      console.log("✅ Audio downloaded:", audioData.byteLength, "bytes")
-
-      console.log("📥 Downloading background from:", options.backgroundUrl)
-      const backgroundData = await this.downloadAsset(options.backgroundUrl)
-      console.log("✅ Background downloaded:", backgroundData.byteLength, "bytes")
-
-      let fontData: ArrayBuffer | null = null
-      if (captions) {
-        try {
-          console.log("📥 Downloading font for captions...")
-          fontData = await this.downloadAsset("/fonts/Roboto_Condensed-Medium.ttf")
-          console.log("✅ Font downloaded:", fontData.byteLength, "bytes")
-        } catch (error) {
-          console.warn("⚠️ Could not download font file, captions will be disabled:", error)
-        }
-      } else {
-        console.log("📝 Captions disabled, skipping font download")
-      }
+      // Fetch audio, background, and (optionally) the caption font concurrently.
+      const [audioData, backgroundData, fontData] = await Promise.all([
+        this.downloadAsset(options.audioUrl),
+        this.downloadAsset(options.backgroundUrl),
+        captions
+          ? this.downloadAsset("/fonts/Roboto_Condensed-Medium.ttf").catch((error) => {
+              console.warn("⚠️ Could not download caption font; captions will be skipped:", error)
+              return null as ArrayBuffer | null
+            })
+          : Promise.resolve<ArrayBuffer | null>(null),
+      ])
+      console.log("✅ Assets downloaded:", { audio: audioData.byteLength, background: backgroundData.byteLength })
 
       if (!audioData || audioData.byteLength === 0) {
         throw new Error("Audio file download failed or is empty")

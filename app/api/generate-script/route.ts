@@ -66,27 +66,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Server configuration error" }, { status: 500 })
     }
 
-    const prompt = `Create an engaging ${duration}-second video script for ${audience} about: ${topic}
+    const targetWords = Math.round((Number.parseInt(duration, 10) || 60) * 2.5)
+    const prompt = `You are an elite short-form video scriptwriter. Write the SPOKEN NARRATION for a ${duration}-second vertical video (TikTok / YouTube Shorts / Instagram Reels) about: ${topic}
 
-Style: ${style}
+Audience: ${audience}. Tone/style: ${style}.
 
-Requirements:
-- Hook viewers in the first 3 seconds
-- Keep it conversational and engaging
-- Include a clear call-to-action
-- Optimize for ${audience === "tiktok" ? "TikTok/Shorts" : "social media"}
-- Use simple, clear language
-- End with engagement (like, share, follow)
+Write for maximum retention and watch-time:
+- HOOK (first 3 seconds): open with a scroll-stopping hook — a bold claim, a surprising/counterintuitive fact, a sharp question, or a pattern interrupt. NEVER open with "Welcome", "Hey guys", "In this video", "Today I'm going to", or any greeting/intro.
+- Build curiosity fast and WITHHOLD the payoff so viewers stay to the end.
+- Keep sentences short, punchy, and conversational — easy to say out loud, no jargon.
+- Deliver real value or a satisfying payoff in the back half.
+- End the LAST line with a strong call-to-action (e.g. follow for more, comment your take).
+- Length: about ${targetWords} words so it runs ~${duration} seconds when spoken at a natural pace.
 
-IMPORTANT: Generate ONLY the spoken narration text that will be converted to audio.
-DO NOT include:
-- Stage directions in brackets like [Opening shot...]
-- Production notes like [PAUSE] or [Cut to...]
-- Timestamps like [00:00 - 00:03]
-- Any bracketed text or instructions
-- Visual descriptions or camera directions
-
-Output should be pure spoken dialogue that flows naturally when read aloud.`
+OUTPUT RULES — return ONLY the spoken words, nothing else:
+- No stage directions, brackets, production notes, timestamps, emojis, headings, hashtags, speaker labels, or markdown.
+- No "[Opening shot]", "[PAUSE]", "(music)", "Narrator:", or similar.
+- Just clean, natural narration text that flows when read aloud.`
 
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), AZURE_TIMEOUT_MS)
