@@ -95,9 +95,10 @@ Row Level Security (RLS) policies ensure data isolation:
 ### Video Generation Pipeline
 1. **Script Generation**: Azure AI Foundry GPT-5.4 creates engaging script
 2. **Voice Synthesis**: Azure AI Foundry gpt-4o-mini-tts converts script to audio
-3. **Background Selection**: User chooses from uploaded/generated backgrounds
-4. **Video Composition**: Client-side FFmpeg combines audio and background
-5. **Upload & Storage**: Final video uploaded to Vercel Blob
+3. **Background Selection**: User chooses a preset (24 built-in), an uploaded, or an AI-generated background; optional Ken Burns zoom/pan animation
+4. **Caption Sync** (optional): the voiceover is transcribed (OpenAI Whisper via `/api/transcribe`) to word-level timestamps so captions burn in aligned to the audio; falls back to estimated timing if `OPENAI_API_KEY` is unset
+5. **Video Composition**: Client-side FFmpeg.wasm combines audio + background (+ optional `zoompan` animation and captions) at 24fps
+6. **Upload & Storage**: Final video uploaded to Vercel Blob
 
 ### Error Handling
 - Structured error responses with consistent format
@@ -119,9 +120,9 @@ Row Level Security (RLS) policies ensure data isolation:
 - **API Rate Limiting**: Prevent abuse with request throttling
 
 ### Video Processing
-- **Client-side Processing**: Reduces server load using FFmpeg.wasm
-- **Progressive Loading**: Stream processing for large files
-- **Compression**: Optimized output settings for web delivery
+- **Client-side Processing**: Single-threaded FFmpeg.wasm in the browser — no server compute (Vercel serverless is too constrained for video encoding). The multi-threaded core (`@ffmpeg/core-mt`) was evaluated and is **not viable here**: it requires COEP cross-origin isolation, which breaks the FFmpeg worker load under Next 16 + Turbopack.
+- **Speed**: 720p `veryfast` preset, 24fps, and parallel asset downloads keep render times down within the single-thread constraint
+- **Compression**: CRF-based output tuned per quality tier for web delivery
 
 ## Security Measures
 

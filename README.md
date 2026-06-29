@@ -80,8 +80,9 @@ This creates 4 tables with RLS policies: `profiles`, `projects`, `backgrounds`, 
 - **Multi-voice TTS** - Natural speech synthesis via gpt-4o-mini-tts
 - **Background Library** - 24 built-in presets across 6 categories, plus upload or AI-generate (gpt-image-1.5)
 - **Audio-synced Captions** - Word-level timing via OpenAI Whisper (`OPENAI_API_KEY`), with graceful fallback to estimated timing
+- **Ken Burns Backgrounds** - Optional slow zoom-in / zoom-out / pan animation on the background (FFmpeg `zoompan`)
 - **Editable Review** - Edit the script on the final step before rendering
-- **Client-side Render** - FFmpeg.wasm compose in the browser with selectable quality tiers (720p/1080p/4K)
+- **Client-side Render** - Single-threaded FFmpeg.wasm composes the video in the browser at 24fps, with selectable quality tiers (720p/1080p/4K)
 - **Project Management** - Dashboard with creation history
 - **Responsive Design** - Mobile-optimized interface
 
