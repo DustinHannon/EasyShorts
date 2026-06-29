@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useWizard } from "./wizard-provider"
 import { updateProject } from "@/lib/supabase/actions"
+import { NICHE_TEMPLATES, type NicheTemplate } from "@/lib/niches"
 import { Loader2, Wand2, Settings } from "lucide-react"
 import { useRouter } from "next/navigation"
 
@@ -23,6 +24,7 @@ export function ScriptStep() {
   const [style, setStyle] = useState("engaging")
   const [duration, setDuration] = useState("60")
   const [audience, setAudience] = useState("general")
+  const [niche, setNiche] = useState("")
 
   // Safe value getters to prevent undefined values
   const safeStyle = String(style || "engaging")
@@ -33,6 +35,14 @@ export function ScriptStep() {
   const scriptText = (state.project.script || "").trim()
   const scriptWordCount = scriptText ? scriptText.split(/\s+/).length : 0
   const estimatedSeconds = Math.round(scriptWordCount / 2.5)
+
+  // Applying a niche template pre-fills the generation settings + format.
+  const applyNiche = (n: NicheTemplate) => {
+    setNiche(n.id)
+    setStyle(n.style)
+    setAudience(n.audience)
+    setDuration(n.duration)
+  }
 
   const handleGenerateScript = async () => {
     const safeTopic = String(topic || "").trim()
@@ -50,6 +60,7 @@ export function ScriptStep() {
         style: safeStyle,
         duration: safeDuration,
         audience: safeAudience,
+        niche,
       }
 
       const response = await fetch("/api/generate-script", {
@@ -135,6 +146,29 @@ export function ScriptStep() {
               <Settings className="w-4 h-4 mr-2" />
               {showAdvanced ? "Hide" : "Show"} Options
             </Button>
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-sm text-gray-400">Pick a content style (optional):</p>
+            <div className="flex flex-wrap gap-2">
+              {NICHE_TEMPLATES.map((n) => (
+                <button
+                  key={n.id}
+                  type="button"
+                  onClick={() => applyNiche(n)}
+                  title={n.description}
+                  aria-pressed={niche === n.id}
+                  className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
+                    niche === n.id
+                      ? "border-pink-500 bg-pink-500/20 text-white"
+                      : "border-white/20 bg-white/5 text-gray-300 hover:bg-white/10"
+                  }`}
+                >
+                  <span className="mr-1">{n.emoji}</span>
+                  {n.name}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="space-y-4">

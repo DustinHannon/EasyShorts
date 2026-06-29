@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getRouteUser } from "@/lib/supabase/server"
+import { getNicheGuidance } from "@/lib/niches"
 
 const AZURE_ENDPOINT = "https://AZ-UTIL-AI.openai.azure.com/openai/v1/chat/completions"
 const AZURE_TIMEOUT_MS = 30000
@@ -49,6 +50,8 @@ export async function POST(request: NextRequest) {
     const style = String(body.style || "engaging").trim()
     const duration = String(body.duration || "60").trim()
     const audience = String(body.audience || "general audience").trim()
+    const nicheGuidance = getNicheGuidance(body.niche)
+    const nicheLine = nicheGuidance ? `\n\nFormat: ${nicheGuidance}` : ""
 
     if (!topic) {
       return NextResponse.json({ error: "Topic is required" }, { status: 400 })
@@ -69,7 +72,7 @@ export async function POST(request: NextRequest) {
     const targetWords = Math.round((Number.parseInt(duration, 10) || 60) * 2.5)
     const prompt = `You are an elite short-form video scriptwriter. Write the SPOKEN NARRATION for a ${duration}-second vertical video (TikTok / YouTube Shorts / Instagram Reels) about: ${topic}
 
-Audience: ${audience}. Tone/style: ${style}.
+Audience: ${audience}. Tone/style: ${style}.${nicheLine}
 
 Write for maximum retention and watch-time:
 - HOOK (first 3 seconds): open with a scroll-stopping hook — a bold claim, a surprising/counterintuitive fact, a sharp question, or a pattern interrupt. NEVER open with "Welcome", "Hey guys", "In this video", "Today I'm going to", or any greeting/intro.
