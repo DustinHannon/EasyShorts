@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useWizard } from "./wizard-provider"
 import { updateProject } from "@/lib/supabase/actions"
@@ -336,6 +337,23 @@ export function GenerateStep() {
               <RefreshCw className="w-3 h-3 mr-1" />
               Retry
             </Button>
+          </div>
+        )}
+
+        {!isGenerating && !isComplete && (
+          <div className="bg-white/5 rounded-lg p-4 space-y-2">
+            <label htmlFor="final-script" className="block text-sm font-medium text-gray-300">
+              Review &amp; edit script
+            </label>
+            <Textarea
+              id="final-script"
+              value={state.project.script || ""}
+              onChange={(e) => dispatch({ type: "UPDATE_PROJECT", updates: { script: e.target.value } })}
+              className="bg-white/5 border-white/20 text-white min-h-[140px]"
+            />
+            <p className="text-xs text-gray-400">
+              Edit the narration here before generating — your changes apply to this render.
+            </p>
           </div>
         )}
 
