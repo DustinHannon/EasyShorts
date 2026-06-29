@@ -5,8 +5,10 @@ import { put } from "@vercel/blob"
 const AZURE_ENDPOINT = "https://AZ-UTIL-AI.openai.azure.com/openai/v1/images/generations"
 const MODEL = "gpt-image-1.5"
 const AZURE_TIMEOUT_MS = 30000
-const VALID_SIZES = ["1024x1024", "1024x1792", "1792x1024"]
-const DEFAULT_SIZE = "1024x1792"
+// gpt-image-1.5 supported sizes (NOT the DALL-E set). 1024x1536 = vertical 2:3,
+// the closest portrait fit for short-form video backgrounds.
+const VALID_SIZES = ["1024x1024", "1024x1536", "1536x1024", "auto"]
+const DEFAULT_SIZE = "1024x1536"
 
 function isAllowedImageHost(rawUrl: string): boolean {
   try {

@@ -90,7 +90,7 @@ export function BackgroundStep() {
         body: JSON.stringify({
           prompt: customPrompt,
           style: "digital art",
-          size: "1024x1792", // Vertical format for social media
+          size: "1024x1536", // Vertical (2:3) — gpt-image-1.5 supported size
           saveToGallery, // Pass save option to API
         }),
       })
