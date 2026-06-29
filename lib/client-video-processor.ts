@@ -318,7 +318,9 @@ export class ClientVideoProcessor {
       captionFiltersCount: drawtextFilters.length,
     })
 
-    const baseFilter = `[0:v]scale=${scaledWidth}:${scaledHeight}:force_original_aspect_ratio=increase,crop=${scaledWidth}:${scaledHeight},fps=30[video]`
+    // 24fps: a static-background video only changes when captions pop in, so
+    // 24fps looks identical to 30fps while encoding ~20% fewer frames (faster).
+    const baseFilter = `[0:v]scale=${scaledWidth}:${scaledHeight}:force_original_aspect_ratio=increase,crop=${scaledWidth}:${scaledHeight},fps=24[video]`
 
     let filterComplex: string
     let mapVideo: string
@@ -338,7 +340,7 @@ export class ClientVideoProcessor {
       "-loop",
       "1",
       "-framerate",
-      "30",
+      "24",
       "-i",
       "background.jpg",
       "-i",
