@@ -19,10 +19,10 @@ const csp = [
   // `blob:` is REQUIRED: FFmpeg.wasm's toBlobURL turns the core/wasm into blob:
   // URLs that ffmpeg.load() (and the audio download) then fetch — without it,
   // browser-side video generation fails with "Failed to fetch".
-  // `*.vercel-storage.com` (not just *.public.blob.*) is REQUIRED: the @vercel/blob
-  // client uploads to the API host blob.vercel-storage.com; the public.blob host
-  // only serves finished files. Without the API host the upload hangs.
-  `connect-src 'self' blob: https://unpkg.com https://*.vercel-storage.com https://*.supabase.co wss://*.supabase.co ${supabaseConnect}`,
+  // The @vercel/blob client upload() routes through https://vercel.com/api/blob/
+  // (the upload proxy) and serves/finalizes via *.vercel-storage.com — BOTH are
+  // REQUIRED in connect-src or the final video upload is blocked and hangs at 85%.
+  `connect-src 'self' blob: https://unpkg.com https://vercel.com https://*.vercel-storage.com https://*.supabase.co wss://*.supabase.co ${supabaseConnect}`,
   "worker-src 'self' blob:",
   "frame-ancestors 'none'",
   "base-uri 'self'",
