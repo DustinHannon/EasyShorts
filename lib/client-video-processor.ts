@@ -84,10 +84,16 @@ export class ClientVideoProcessor {
       baseListenersBound = true
     }
 
-    // Multi-thread needs SharedArrayBuffer, which requires the page to be
-    // cross-origin isolated (COOP/COEP on /create). The MT core is self-hosted
-    // same-origin (/public/ffmpeg) so COEP doesn't block it.
+    // Multi-thread needs SharedArrayBuffer (cross-origin isolation, which IS
+    // working on /create). But the @ffmpeg/core-mt worker load HANGS under
+    // Next.js 16 + Turbopack bundling (smoke test 2026-06-29: load() never
+    // resolves, caught by the timeout below). Gated OFF until that load is fixed
+    // and proven; single-thread runs instead (it loads fine under the /create
+    // COEP headers because toBlobURL fetches are CORS, which COEP doesn't gate).
+    // Flip this true once the MT hang is resolved.
+    const MULTITHREAD_ENABLED = false
     sharedIsMultiThread =
+      MULTITHREAD_ENABLED &&
       typeof SharedArrayBuffer !== "undefined" &&
       typeof self !== "undefined" &&
       self.crossOriginIsolated === true
