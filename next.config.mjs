@@ -5,12 +5,10 @@
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
 const supabaseConnect = supabaseUrl ? `${supabaseUrl} ${supabaseUrl.replace("https://", "wss://")}` : ""
 
-// CSP is scoped to what the app actually loads. It intentionally allows the
-// FFmpeg.wasm pipeline — script/worker from blob: (+ unpkg for the single-thread
-// fallback core) and 'wasm-unsafe-eval'. COEP require-corp is applied ONLY on
-// /create (see isolationHeaders) to unlock SharedArrayBuffer for the multi-thread
-// core, which is self-hosted same-origin (/public/ffmpeg) so COEP can't block it.
-// COEP must NEVER be applied site-wide.
+// CSP is scoped to what the app actually loads. IMPORTANT: it intentionally
+// allows the FFmpeg.wasm pipeline — script/worker from blob: + unpkg CDN and
+// 'wasm-unsafe-eval' — and must NOT use COEP require-corp (single-threaded UMD
+// core needs cross-origin fetches), or browser-side video generation breaks.
 const csp = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob: https://unpkg.com",
@@ -44,15 +42,6 @@ const securityHeaders = [
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
 ]
 
-// Cross-origin isolation (COOP + COEP) enables SharedArrayBuffer, which the
-// multi-threaded FFmpeg core (@ffmpeg/core-mt) requires. Scoped to /create ONLY.
-// require-corp keeps Safari support; cross-origin <img>/<video> on /create carry
-// crossorigin="anonymous" so they still load under it.
-const isolationHeaders = [
-  { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
-  { key: "Cross-Origin-Embedder-Policy", value: "require-corp" },
-]
-
 const nextConfig = {
   typescript: {
     // The codebase is type-clean; let the build enforce it (was hiding 11 errors).
@@ -66,15 +55,6 @@ const nextConfig = {
       {
         source: "/:path*",
         headers: securityHeaders,
-      },
-      // Cross-origin isolation for the multi-thread FFmpeg core — scoped to /create.
-      {
-        source: "/create",
-        headers: isolationHeaders,
-      },
-      {
-        source: "/create/:path*",
-        headers: isolationHeaders,
       },
     ]
   },

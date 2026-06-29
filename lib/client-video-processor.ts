@@ -45,10 +45,6 @@ const qualitySettings = {
 // in createVideo so handlers never stack on the shared instance.
 let sharedFFmpeg: FFmpeg | null = null
 let baseListenersBound = false
-// Shared so concurrent generations await ONE load (racing load() calls hang the
-// multi-thread core). isMultiThread is global because the core instance is shared.
-let sharedLoadPromise: Promise<void> | null = null
-let sharedIsMultiThread = false
 
 export class ClientVideoProcessor {
   private ffmpeg: FFmpeg
@@ -60,82 +56,27 @@ export class ClientVideoProcessor {
   }
 
   private async initFFmpeg() {
-    if (this.ffmpeg.loaded) return
-    // Share one load across concurrent generations — racing load() calls on the
-    // shared instance hang the multi-thread core.
-    if (sharedLoadPromise) {
-      await sharedLoadPromise
-      return
-    }
-    sharedLoadPromise = this.loadCore()
-    try {
-      await sharedLoadPromise
-    } catch (error) {
-      sharedLoadPromise = null // allow a retry after a failed/timed-out load
-      throw error
-    }
-  }
+    if (!this.ffmpeg.loaded) {
+      const baseURL = "https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd"
 
-  private async loadCore(): Promise<void> {
-    if (!baseListenersBound) {
-      this.ffmpeg.on("log", ({ message }) => {
-        console.log("FFmpeg WebAssembly:", message)
-      })
-      baseListenersBound = true
-    }
+      if (!baseListenersBound) {
+        this.ffmpeg.on("log", ({ message }) => {
+          console.log("FFmpeg WebAssembly:", message)
+        })
+        baseListenersBound = true
+      }
 
-    // Multi-thread needs SharedArrayBuffer (cross-origin isolation, which IS
-    // working on /create). But the @ffmpeg/core-mt worker load HANGS under
-    // Next.js 16 + Turbopack bundling (smoke test 2026-06-29: load() never
-    // resolves, caught by the timeout below). Gated OFF until that load is fixed
-    // and proven; single-thread runs instead (it loads fine under the /create
-    // COEP headers because toBlobURL fetches are CORS, which COEP doesn't gate).
-    // Flip this true once the MT hang is resolved.
-    const MULTITHREAD_ENABLED = false
-    sharedIsMultiThread =
-      MULTITHREAD_ENABLED &&
-      typeof SharedArrayBuffer !== "undefined" &&
-      typeof self !== "undefined" &&
-      self.crossOriginIsolated === true
-
-    const loadConfig = sharedIsMultiThread
-      ? {
-          coreURL: "/ffmpeg/ffmpeg-core.js",
-          wasmURL: "/ffmpeg/ffmpeg-core.wasm",
-          workerURL: "/ffmpeg/ffmpeg-core.worker.js",
-        }
-      : {
-          // Stage A fallback: single-thread core from unpkg (page not isolated).
-          coreURL: await toBlobURL("https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js", "text/javascript"),
-          wasmURL: await toBlobURL("https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.wasm", "application/wasm"),
-        }
-
-    console.log(
-      sharedIsMultiThread
-        ? "🔧 Loading FFmpeg multi-thread core (crossOriginIsolated)..."
-        : "⚠️ Not crossOriginIsolated — loading single-thread core (fallback)",
-    )
-
-    // Fail loud: a hung load() (a known multi-thread failure mode) rejects after
-    // the timeout instead of leaving the UI stuck at 5% forever.
-    const LOAD_TIMEOUT_MS = 90_000
-    let timer: ReturnType<typeof setTimeout> | undefined
-    try {
-      await Promise.race([
-        this.ffmpeg.load(loadConfig),
-        new Promise<never>((_, reject) => {
-          timer = setTimeout(
-            () => reject(new Error(`FFmpeg core load timed out after ${LOAD_TIMEOUT_MS / 1000}s`)),
-            LOAD_TIMEOUT_MS,
-          )
-        }),
-      ])
-      console.log(`✅ FFmpeg loaded (${sharedIsMultiThread ? "multi-thread" : "single-thread"})`)
-    } catch (error) {
-      console.error("❌ Failed to load FFmpeg core:", error)
-      throw new Error(`FFmpeg core load failed: ${error instanceof Error ? error.message : String(error)}`)
-    } finally {
-      if (timer) clearTimeout(timer)
+      try {
+        console.log("🔧 Loading FFmpeg WebAssembly core...")
+        await this.ffmpeg.load({
+          coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
+          wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, "application/wasm"),
+        })
+        console.log("✅ FFmpeg WebAssembly loaded successfully")
+      } catch (error) {
+        console.error("❌ Failed to load FFmpeg WebAssembly:", error)
+        throw new Error(`FFmpeg WebAssembly initialization failed: ${error}`)
+      }
     }
   }
 
@@ -420,10 +361,6 @@ export class ClientVideoProcessor {
       qualityConfig.preset,
       "-crf",
       String(qualityConfig.crf),
-      // Multi-thread encode: cap threads at 4 (libx264-in-wasm gets unstable higher).
-      ...(sharedIsMultiThread
-        ? ["-threads", String(Math.min(typeof navigator !== "undefined" ? navigator.hardwareConcurrency || 4 : 4, 4))]
-        : []),
       "-c:a",
       "aac",
       "-b:a",
