@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -24,6 +24,7 @@ export function GenerateStep() {
   const { state, dispatch } = useWizard()
   const router = useRouter()
   const [isGenerating, setIsGenerating] = useState(false)
+  const generatingRef = useRef(false) // synchronous re-entry guard (isGenerating state is async)
   const [generationProgress, setGenerationProgress] = useState<ProcessingProgress>({
     progress: 0,
     stage: "waiting",
@@ -170,6 +171,11 @@ export function GenerateStep() {
       return
     }
 
+    // Synchronous guard: prevents a second concurrent run (button-disable is async),
+    // which would race two FFmpeg loads on the shared instance and hang the MT core.
+    if (generatingRef.current) return
+    generatingRef.current = true
+
     setIsGenerating(true)
     setGenerationProgress({ progress: 0, stage: "starting", message: "Starting video generation..." })
     dispatch({ type: "SET_ERROR", error: null })
@@ -303,6 +309,7 @@ export function GenerateStep() {
       }
     } finally {
       setIsGenerating(false)
+      generatingRef.current = false
     }
   }
 
