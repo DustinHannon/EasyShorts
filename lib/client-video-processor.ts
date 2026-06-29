@@ -28,10 +28,15 @@ const formatDimensions = {
   horizontal: { width: 1920, height: 1080 }, // 16:9 for YouTube
 }
 
+// scale = resolution multiplier; preset/crf make the tiers genuinely differ in
+// speed and quality. 720p uses a faster preset (the common/fast tier); higher
+// tiers trade speed for quality via a lower CRF. (We intentionally do NOT pass
+// -level: the libx264 auto-selected level fits tall vertical frames, whereas a
+// hard-coded landscape level can make encoding fail.)
 const qualitySettings = {
-  "720p": { scale: 0.67, bitrate: "2M", profile: "baseline", level: "3.0" },
-  "1080p": { scale: 1, bitrate: "4M", profile: "high", level: "4.0" },
-  "4k": { scale: 2, bitrate: "20M", profile: "high", level: "5.1" },
+  "720p": { scale: 0.67, profile: "baseline", preset: "veryfast", crf: 24 },
+  "1080p": { scale: 1, profile: "high", preset: "fast", crf: 21 },
+  "4k": { scale: 2, profile: "high", preset: "fast", crf: 20 },
 }
 
 // Reuse one FFmpeg instance (and its ~30MB WASM core) across generations so a
@@ -297,7 +302,7 @@ export class ClientVideoProcessor {
 
   private async createVideo(options: {
     dimensions: { width: number; height: number }
-    qualityConfig: { scale: number; bitrate: string; profile: string; level: string }
+    qualityConfig: { scale: number; profile: string; preset: string; crf: number }
     drawtextFilters: string[]
     onProgress?: (progress: ProcessingProgress) => void
   }): Promise<Blob> {
@@ -351,9 +356,9 @@ export class ClientVideoProcessor {
       "-profile:v",
       qualityConfig.profile,
       "-preset",
-      "fast",
+      qualityConfig.preset,
       "-crf",
-      "23",
+      String(qualityConfig.crf),
       "-c:a",
       "aac",
       "-b:a",
