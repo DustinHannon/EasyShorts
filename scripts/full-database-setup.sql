@@ -96,6 +96,8 @@ CREATE POLICY "Users can delete own projects" ON public.projects
   FOR DELETE TO authenticated USING ((select auth.uid()) = user_id);
 
 CREATE INDEX IF NOT EXISTS idx_projects_user_id ON public.projects(user_id);
+-- Serves the dashboard list query: WHERE user_id = $1 ORDER BY created_at DESC.
+CREATE INDEX IF NOT EXISTS idx_projects_user_created ON public.projects(user_id, created_at DESC);
 
 -- =============================================================================
 -- 3. BACKGROUNDS
@@ -124,6 +126,8 @@ CREATE POLICY "Users can delete own backgrounds" ON public.backgrounds
   FOR DELETE TO authenticated USING ((select auth.uid()) = user_id);
 
 CREATE INDEX IF NOT EXISTS idx_backgrounds_user_id ON public.backgrounds(user_id);
+-- Serves the gallery/wizard list query: WHERE user_id = $1 ORDER BY created_at DESC.
+CREATE INDEX IF NOT EXISTS idx_backgrounds_user_created ON public.backgrounds(user_id, created_at DESC);
 
 -- =============================================================================
 -- 4. GENERATED VIDEOS
@@ -172,6 +176,8 @@ CREATE POLICY "Users can delete own videos" ON public.generated_videos
 -- Backs the ON DELETE SET NULL scan on the project FK.
 CREATE INDEX IF NOT EXISTS idx_generated_videos_user_id ON public.generated_videos(user_id);
 CREATE INDEX IF NOT EXISTS idx_generated_videos_project_id ON public.generated_videos(project_id);
+-- Serves the gallery list query: WHERE user_id = $1 ORDER BY created_at DESC.
+CREATE INDEX IF NOT EXISTS idx_generated_videos_user_created ON public.generated_videos(user_id, created_at DESC);
 
 -- =============================================================================
 -- 5. AI USAGE QUOTA (per-user daily limit on paid Azure endpoints)

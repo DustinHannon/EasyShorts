@@ -16,6 +16,11 @@ export interface VideoProcessingOptions {
   wordTimings?: WordTiming[]
   // Ken Burns background animation; defaults to static ("none").
   animation?: "none" | "zoom-in" | "zoom-out" | "pan"
+  // Measured length of the voiceover in seconds (the clip's real length, since
+  // the encode loops a still image and ends on -shortest). Used to normalise the
+  // Ken Burns motion so it completes exactly at the end of the clip. When
+  // absent, the animation falls back to fixed per-frame rates.
+  durationSeconds?: number
 }
 
 export interface ProcessingProgress {
@@ -235,9 +240,13 @@ export class ClientVideoProcessor {
       let drawtextFilters: string[] = []
       if (captions && usableFont) {
         onProgress?.({ stage: "captions", progress: 35, message: "Generating captions..." })
+        // Rounded exactly like createVideo's scaledWidth/scaledHeight so the
+        // caption sizer measures against the REAL encoded frame — the new
+        // width clamp divides by this, so a fractional width would quietly
+        // shift the budget it is supposed to guarantee.
         const captionDims = {
-          width: dimensions.width * qualityConfig.scale,
-          height: dimensions.height * qualityConfig.scale,
+          width: Math.round(dimensions.width * qualityConfig.scale),
+          height: Math.round(dimensions.height * qualityConfig.scale),
         }
         if (options.wordTimings && options.wordTimings.length > 0) {
           // Real audio-aligned captions from transcription word timestamps.
@@ -247,7 +256,12 @@ export class ClientVideoProcessor {
         if (drawtextFilters.length === 0) {
           // Fallback: estimate timing from word count x voice speed (legacy).
           const voiceSpeed = options.voiceSpeed || 1.0
-          drawtextFilters = this.generateCaptionFilters(options.script, captionDims, voiceSpeed)
+          drawtextFilters = this.generateCaptionFilters(
+            options.script,
+            captionDims,
+            voiceSpeed,
+            options.durationSeconds,
+          )
           console.log("📝 Estimated caption timing (no word timestamps):", drawtextFilters.length, "filters")
         }
       } else {
@@ -260,6 +274,7 @@ export class ClientVideoProcessor {
         qualityConfig,
         drawtextFilters,
         animation: options.animation,
+        durationSeconds: options.durationSeconds,
         onProgress,
       })
 
@@ -322,25 +337,33 @@ export class ClientVideoProcessor {
     script: string,
     dimensions: { width: number; height: number },
     voiceSpeed = 1.0,
+    durationSeconds?: number,
   ): string[] {
     const words = script.trim().split(/\s+/)
     const fontSize = Math.max(48, Math.floor(dimensions.height * 0.06))
     const yPosition = Math.floor(dimensions.height * 0.85)
 
-    const baseWordsPerSecond = 2.5
-    const adjustedWordsPerSecond = baseWordsPerSecond * voiceSpeed
-    const timePerWord = 1 / adjustedWordsPerSecond
+    // Prefer the REAL audio length when we have it: spreading the script evenly
+    // across the measured duration keeps the last caption aligned with the last
+    // spoken word. The 2.5 words/sec guess is only a fallback, and it drifts
+    // further the longer the script runs.
+    const hasDuration = typeof durationSeconds === "number" && Number.isFinite(durationSeconds) && durationSeconds > 0
+    const timePerWord = hasDuration
+      ? durationSeconds! / Math.max(1, words.length)
+      : 1 / (2.5 * voiceSpeed)
 
     console.log(`📝 Caption timing calculation:`, {
+      source: hasDuration ? "measured audio duration" : "estimated 2.5 words/sec",
+      durationSeconds,
+      wordCount: words.length,
       voiceSpeed,
-      baseWordsPerSecond,
-      adjustedWordsPerSecond,
-      timePerWord: timePerWord.toFixed(2),
+      timePerWord: timePerWord.toFixed(3),
     })
 
-    const drawtextFilters: string[] = []
-
-    // Group words into 1-3 word segments for better readability
+    // Build the phrases first so one uniform size can be chosen for all of them
+    // (sizing each phrase independently makes the caption visibly resize several
+    // times a second). Mirrors lib/captions.ts.
+    const phrases: { text: string; start: number; end: number }[] = []
     for (let i = 0; i < words.length; i += 2) {
       const wordGroup = words.slice(i, i + 2).join(" ") // Take 2 words at a time
       const cleanText = this.cleanTextForDrawtext(wordGroup)
@@ -348,15 +371,31 @@ export class ClientVideoProcessor {
       // bare black box on screen. Skip it (mirrors the Whisper path's guard).
       if (!cleanText) continue
 
-      const startTime = i * timePerWord
       // The final slice may hold only ONE word; i+2 would keep that caption on
       // screen for double its share.
-      const endTime = Math.min(i + 2, words.length) * timePerWord
-
-      const drawtextFilter = `drawtext=fontfile=Roboto_Condensed-Medium.ttf:text='${cleanText}':fontcolor=white:fontsize=${fontSize}:x=(w-text_w)/2:y=${yPosition}:box=1:boxcolor=black@0.5:boxborderw=5:enable='between(t,${startTime.toFixed(1)},${endTime.toFixed(1)})'`
-
-      drawtextFilters.push(drawtextFilter)
+      phrases.push({
+        text: cleanText,
+        start: i * timePerWord,
+        end: Math.min(i + 2, words.length) * timePerWord,
+      })
     }
+
+    if (phrases.length === 0) return []
+
+    // Same width clamp as the audio-synced path: drawtext never wraps, so a long
+    // group at the height-derived size overflows the frame and x=(w-text_w)/2
+    // goes negative, clipping it at both edges.
+    const widthBudget = dimensions.width * 0.9
+    const fitted = phrases.reduce(
+      (size, p) => Math.min(size, Math.floor(widthBudget / (p.text.length * 0.5))),
+      fontSize,
+    )
+    const finalSize = Math.max(36, fitted)
+
+    const drawtextFilters = phrases.map(
+      (p) =>
+        `drawtext=fontfile=Roboto_Condensed-Medium.ttf:text='${p.text}':fontcolor=white:fontsize=${finalSize}:x=(w-text_w)/2:y=${yPosition}:box=1:boxcolor=black@0.5:boxborderw=5:enable='between(t,${p.start.toFixed(1)},${p.end.toFixed(1)})'`,
+    )
 
     console.log(
       `📝 Generated ${drawtextFilters.length} time-synchronized caption filters with voice speed ${voiceSpeed}x`,
@@ -385,9 +424,10 @@ export class ClientVideoProcessor {
     qualityConfig: { scale: number; profile: string; preset: string; crf: number }
     drawtextFilters: string[]
     animation?: "none" | "zoom-in" | "zoom-out" | "pan"
+    durationSeconds?: number
     onProgress?: (progress: ProcessingProgress) => void
   }): Promise<Blob> {
-    const { dimensions, qualityConfig, drawtextFilters, animation, onProgress } = options
+    const { dimensions, qualityConfig, drawtextFilters, animation, durationSeconds, onProgress } = options
 
     const scaledWidth = Math.round(dimensions.width * qualityConfig.scale)
     const scaledHeight = Math.round(dimensions.height * qualityConfig.scale)
@@ -415,12 +455,26 @@ export class ClientVideoProcessor {
       const upW = even(scaledWidth * factor)
       const upH = even(scaledHeight * factor)
       const centered = "x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'"
+      // Normalise the motion to the clip's length so the move finishes exactly
+      // at the end. With fixed per-frame rates the 1.0->1.5 zoom took 833 frames
+      // (~35s at 24fps) and the pan a hard-coded 1500 (~62s) regardless of the
+      // video: a 15s short only performed ~43% of the zoom, and a 60s video froze
+      // for its last 25s. Falls back to the old constants when the length is
+      // unknown, so behaviour is unchanged in that case.
+      const totalFrames =
+        typeof durationSeconds === "number" && Number.isFinite(durationSeconds) && durationSeconds > 0
+          ? Math.max(1, Math.round(durationSeconds * 24))
+          : null
+      // Clamped away from zero: toFixed(6) on an absurdly long clip would
+      // otherwise round the step to "0.000000" and freeze the zoom entirely.
+      const zoomStep = totalFrames ? Math.max(0.000001, 0.5 / totalFrames).toFixed(6) : "0.0006"
+      const panFrames = totalFrames ?? 1500
       const zoompan =
         kenBurns === "zoom-out"
-          ? `z='if(eq(on,1),1.5,max(zoom-0.0006,1.0))':${centered}`
+          ? `z='if(eq(on,1),1.5,max(zoom-${zoomStep},1.0))':${centered}`
           : kenBurns === "pan"
-            ? "z='1.2':x='(iw-iw/zoom)*on/1500':y='ih/2-(ih/zoom/2)'"
-            : `z='min(zoom+0.0006,1.5)':${centered}`
+            ? `z='1.2':x='(iw-iw/zoom)*on/${panFrames}':y='ih/2-(ih/zoom/2)'`
+            : `z='min(zoom+${zoomStep},1.5)':${centered}`
       baseFilter = `[0:v]scale=${upW}:${upH}:force_original_aspect_ratio=increase:flags=lanczos,crop=${upW}:${upH},setsar=1,zoompan=${zoompan}:d=99999:s=${scaledWidth}x${scaledHeight}:fps=24[video]`
     } else {
       // Static: a still background only changes when captions pop in, so 24fps

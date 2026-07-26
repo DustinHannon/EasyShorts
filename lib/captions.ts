@@ -53,7 +53,7 @@ export function buildCaptionFiltersFromTimings(words: WordTiming[], layout: Capt
   const groupSize = Math.max(1, layout.wordsPerGroup ?? 3)
   const pauseSplit = layout.pauseSplitSeconds ?? 0.55
 
-  const filters: string[] = []
+  const phrases: { text: string; start: number; end: number }[] = []
   let group: WordTiming[] = []
 
   const flush = () => {
@@ -63,9 +63,7 @@ export function buildCaptionFiltersFromTimings(words: WordTiming[], layout: Capt
     const end = group[group.length - 1].end
     group = []
     if (!text || !(end > start)) return
-    filters.push(
-      `drawtext=fontfile=${FONT_FILE}:text='${text}':fontcolor=white:fontsize=${fontSize}:x=(w-text_w)/2:y=${yPosition}:box=1:boxcolor=black@0.55:boxborderw=12:enable='between(t,${start.toFixed(2)},${end.toFixed(2)})'`,
-    )
+    phrases.push({ text, start, end })
   }
 
   for (let i = 0; i < valid.length; i++) {
@@ -76,5 +74,24 @@ export function buildCaptionFiltersFromTimings(words: WordTiming[], layout: Capt
     if (reachedSize || bigPause || !next) flush()
   }
 
-  return filters
+  if (phrases.length === 0) return []
+
+  // Clamp by WIDTH as well as height, then apply ONE size to every phrase.
+  // drawtext never wraps, so at the height-derived size a long phrase renders
+  // wider than the frame and x=(w-text_w)/2 goes negative, clipping it at both
+  // edges. Sizing each phrase independently would fix that but make the caption
+  // resize 2-3 times a second, which reads as broken; taking the minimum keeps
+  // every phrase on-screen at a stable size. 0.5em is a deliberately
+  // conservative average advance for Roboto Condensed; 36px is the readable floor.
+  const widthBudget = layout.width * 0.9
+  const fitted = phrases.reduce(
+    (size, p) => Math.min(size, Math.floor(widthBudget / (p.text.length * 0.5))),
+    fontSize,
+  )
+  const finalSize = Math.max(36, fitted)
+
+  return phrases.map(
+    (p) =>
+      `drawtext=fontfile=${FONT_FILE}:text='${p.text}':fontcolor=white:fontsize=${finalSize}:x=(w-text_w)/2:y=${yPosition}:box=1:boxcolor=black@0.55:boxborderw=12:enable='between(t,${p.start.toFixed(2)},${p.end.toFixed(2)})'`,
+  )
 }

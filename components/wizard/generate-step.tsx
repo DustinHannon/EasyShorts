@@ -21,6 +21,49 @@ const BACKGROUND_KIND_LABELS: Record<BackgroundKind, string> = {
   preset: "Preset",
 }
 
+// A stuck/undecodable audio element must never hold up a render.
+const AUDIO_MEASURE_TIMEOUT_MS = 10000
+// Last-resort clip length when neither transcription nor the browser can
+// measure the voiceover.
+const FALLBACK_DURATION_SECONDS = 60
+
+// Measure the generated voiceover directly in the browser. This is the fallback
+// source of truth for how long the video actually is: the encode loops a still
+// image (`-loop 1`) and ends on `-shortest`, so the audio decides the length.
+// HTMLAudioElement.duration can be NaN or Infinity, so every path is guarded and
+// a stalled element resolves null on a timer instead of hanging generation.
+const measureAudioDuration = (blob: Blob): Promise<number | null> =>
+  new Promise((resolve) => {
+    let url: string | null = null
+    let settled = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const done = (v: number | null) => {
+      if (settled) return
+      settled = true
+      if (timer !== undefined) clearTimeout(timer)
+      if (url) URL.revokeObjectURL(url)
+      resolve(v)
+    }
+    // Resolves, never rejects: createObjectURL/new Audio run synchronously in
+    // this executor, so an unguarded throw here would reject and fail the whole
+    // render over a duration probe.
+    try {
+      url = URL.createObjectURL(blob)
+      const audio = new Audio()
+      timer = setTimeout(() => done(null), AUDIO_MEASURE_TIMEOUT_MS)
+      audio.addEventListener("loadedmetadata", () => {
+        const d = audio.duration
+        done(Number.isFinite(d) && d > 0 ? d : null)
+      })
+      audio.addEventListener("error", () => done(null))
+      audio.preload = "metadata"
+      audio.src = url
+    } catch (error) {
+      console.warn("Could not measure the voiceover length; using the fallback duration", error)
+      done(null)
+    }
+  })
+
 export function GenerateStep() {
   const { state, dispatch } = useWizard()
   const router = useRouter()
@@ -83,20 +126,28 @@ export function GenerateStep() {
     }
   }
 
-  // Transcribe the voiceover for real word-level caption timing. Graceful:
-  // returns undefined on any failure (no key, error, timeout) so the processor
-  // falls back to estimated timing and video generation is never blocked.
-  const fetchWordTimings = async (audioBlob: Blob): Promise<WordTiming[] | undefined> => {
+  // Transcribe the voiceover for real word-level caption timing, and pick up the
+  // audio duration the same response reports. Graceful: returns undefined on any
+  // failure (no key, error, timeout) so the processor falls back to estimated
+  // timing and video generation is never blocked.
+  const fetchWordTimings = async (
+    audioBlob: Blob,
+  ): Promise<{ words?: WordTiming[]; duration?: number } | undefined> => {
     try {
       const fd = new FormData()
       fd.append("file", audioBlob, "audio.mp3")
       const res = await fetch("/api/transcribe", { method: "POST", body: fd })
       if (!res.ok) return undefined
       const data = await res.json()
-      if (Array.isArray(data?.words) && data.words.length > 0) {
-        return data.words as WordTiming[]
-      }
-      return undefined
+      const words =
+        Array.isArray(data?.words) && data.words.length > 0 ? (data.words as WordTiming[]) : undefined
+      const rawDuration: unknown = data?.duration
+      const duration =
+        typeof rawDuration === "number" && Number.isFinite(rawDuration) && rawDuration > 0
+          ? rawDuration
+          : undefined
+      if (!words && duration === undefined) return undefined
+      return { words, duration }
     } catch (error) {
       console.warn("Caption sync unavailable; using estimated timing", error)
       return undefined
@@ -200,10 +251,28 @@ export function GenerateStep() {
 
       // Real audio-synced captions from word timestamps (graceful fallback inside).
       let wordTimings: WordTiming[] | undefined
+      let transcribedDuration: number | undefined
       if (captionsEnabled) {
         setGenerationProgress({ progress: 18, stage: "captions", message: "Syncing captions to the audio..." })
-        wordTimings = await fetchWordTimings(audioBlob)
+        const transcription = await fetchWordTimings(audioBlob)
+        wordTimings = transcription?.words
+        transcribedDuration = transcription?.duration
       }
+
+      // The real clip length. The renderer never enforces the `duration` video
+      // setting (nothing trims or pads, and the setting defaults to the string
+      // "auto"), so the voiceover is the video's length. Prefer the length
+      // transcription measured, else measure the audio blob in the browser.
+      // Used for the Ken Burns motion rate AND for the stored gallery duration.
+      if (transcribedDuration === undefined) {
+        // Own progress stage: measuring can take a moment (and is bounded at
+        // AUDIO_MEASURE_TIMEOUT_MS), so the bar must not sit on a stale message.
+        setGenerationProgress({ progress: 20, stage: "measuring", message: "Checking the voiceover length..." })
+      }
+      const measured = transcribedDuration ?? (await measureAudioDuration(audioBlob)) ?? undefined
+      const durationSeconds =
+        typeof measured === "number" && Number.isFinite(measured) && measured > 0 ? measured : undefined
+      const duration = durationSeconds ? Math.max(1, Math.round(durationSeconds)) : FALLBACK_DURATION_SECONDS
 
       setGenerationProgress({ progress: 25, stage: "background", message: "Resolving background..." })
       const backgroundUrl = await getBackgroundUrl()
@@ -222,6 +291,7 @@ export function GenerateStep() {
           voiceSpeed: state.project.voice_settings?.speed || 1.0,
           wordTimings,
           animation: state.project.video_settings?.animation,
+          durationSeconds,
         },
         (progress) => {
           setGenerationProgress(progress)
@@ -236,8 +306,6 @@ export function GenerateStep() {
       setGenerationProgress({ progress: 85, stage: "uploading", message: "Uploading directly to cloud storage..." })
 
       const quality = state.project.video_settings?.quality || "720p"
-      const parsedDuration = Number.parseInt(String(state.project.video_settings?.duration ?? ""), 10)
-      const duration = Number.isFinite(parsedDuration) ? parsedDuration : 60
 
       // Upload under the per-user prefix the /api/video/upload route enforces.
       const supabase = createClient()
@@ -430,6 +498,7 @@ export function GenerateStep() {
               {generationProgress.stage === "initializing" && "Step 3 of 7: Loading video processing tools..."}
               {generationProgress.stage === "preparing" && "Step 4 of 7: Downloading and preparing assets..."}
               {generationProgress.stage === "captions" && "Step 5 of 7: Creating captions with font..."}
+              {generationProgress.stage === "measuring" && "Checking how long the voiceover runs..."}
               {generationProgress.stage === "processing" && "Step 6 of 7: Rendering final video..."}
               {generationProgress.stage === "uploading" && "Step 7 of 7: Uploading to cloud storage..."}
               {generationProgress.stage === "recording" && "Final Step: Saving to your gallery..."}
@@ -439,6 +508,7 @@ export function GenerateStep() {
                 "initializing",
                 "preparing",
                 "captions",
+                "measuring",
                 "processing",
                 "uploading",
                 "recording",
