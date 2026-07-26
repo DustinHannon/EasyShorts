@@ -18,19 +18,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { data: allowed, error: quotaErr } = await supabase.rpc("consume_ai_quota", {
-      p_kind: "speech",
-      p_limit: 50,
-    })
-    if (quotaErr) {
-      console.error("Quota check error (speech):", quotaErr)
-    } else if (allowed === false) {
-      return NextResponse.json(
-        { error: "Daily generation limit reached. Try again tomorrow." },
-        { status: 429 },
-      )
-    }
-
     let body
     try {
       body = await request.json()
@@ -58,6 +45,24 @@ export async function POST(request: NextRequest) {
     const safeVoice = typeof voice === "string" && VALID_VOICES.includes(voice) ? voice : "alloy"
     const parsedSpeed = Number(speed)
     const safeSpeed = Number.isFinite(parsedSpeed) ? Math.min(4, Math.max(0.25, parsedSpeed)) : 1.0
+
+    // Quota is consumed (incremented) here, AFTER validation, so malformed
+    // requests can't burn a user's budget — but before the paid Azure call,
+    // which it gates. Fails CLOSED.
+    const { data: allowed, error: quotaErr } = await supabase.rpc("consume_ai_quota", {
+      p_kind: "speech",
+      p_limit: 50,
+    })
+    if (quotaErr) {
+      console.error("Quota check error (speech):", quotaErr)
+      return NextResponse.json({ error: "Service temporarily unavailable" }, { status: 503 })
+    }
+    if (allowed !== true) {
+      return NextResponse.json(
+        { error: "Daily generation limit reached. Try again tomorrow." },
+        { status: 429 },
+      )
+    }
 
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), AZURE_TIMEOUT_MS)
@@ -92,12 +97,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Failed to generate speech" }, { status: 500 })
     }
 
-    const buffer = Buffer.from(await response.arrayBuffer())
+    // Stream the ArrayBuffer straight through: it is a valid BodyInit, whereas a
+    // Node Buffer is not (TS 5.9 rejects it), and this avoids the extra copy.
+    const audio = await response.arrayBuffer()
 
-    return new NextResponse(buffer, {
+    return new NextResponse(audio, {
       headers: {
         "Content-Type": "audio/mpeg",
-        "Content-Length": buffer.length.toString(),
+        "Content-Length": audio.byteLength.toString(),
       },
     })
   } catch (error) {

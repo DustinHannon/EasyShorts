@@ -72,13 +72,20 @@ export function ScriptStep() {
       })
 
       if (!response.ok) {
-        throw new Error("Failed to generate script")
+        // Surface the API's real message (e.g. the 429 daily-cap notice) instead
+        // of a generic string the user can only respond to by retrying forever.
+        const body = await response.json().catch(() => ({}))
+        throw new Error(body?.error || `Request failed (${response.status})`)
       }
 
       const { script } = await response.json()
       dispatch({ type: "UPDATE_PROJECT", updates: { script } })
     } catch (error) {
-      dispatch({ type: "SET_ERROR", error: "Failed to generate script. Please try again." })
+      console.error("Script generation failed:", error)
+      dispatch({
+        type: "SET_ERROR",
+        error: error instanceof Error ? error.message : "Failed to generate script. Please try again.",
+      })
     } finally {
       setIsGenerating(false)
     }

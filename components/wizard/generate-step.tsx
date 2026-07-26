@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -9,15 +9,16 @@ import { updateProject } from "@/lib/supabase/actions"
 import { Loader2, Play, Download, Share, RefreshCw, CheckCircle } from "lucide-react"
 import { ClientVideoProcessor, type ProcessingProgress } from "@/lib/client-video-processor"
 import { createClient } from "@/lib/supabase/client"
-import { resolveBackgroundUrl } from "@/lib/backgrounds"
+import { backgroundKindOf, resolveBackgroundUrl, type BackgroundKind } from "@/lib/backgrounds"
 import type { WordTiming } from "@/lib/captions"
 import { upload } from "@vercel/blob/client" // Import client upload function
 import { useRouter } from "next/navigation"
 
-interface VideoProgress {
-  progress: number
-  stage: string
-  message: string
+// How each background kind is described on the review screen.
+const BACKGROUND_KIND_LABELS: Record<BackgroundKind, string> = {
+  saved: "Uploaded",
+  generated: "Custom AI",
+  preset: "Preset",
 }
 
 export function GenerateStep() {
@@ -35,6 +36,11 @@ export function GenerateStep() {
   const [localVideoBlob, setLocalVideoBlob] = useState<Blob | null>(null)
   const [localVideoUrl, setLocalVideoUrl] = useState<string | null>(null)
   const [isSharing, setIsSharing] = useState(false)
+  // Guards handleGenerate against re-entry within a single render tick, before
+  // the isGenerating state update has disabled the button.
+  const generationLock = useRef(false)
+
+  const backgroundKind = backgroundKindOf(state.project.video_settings?.background)
 
   // Create a single object URL for the local video blob and revoke it on cleanup
   // (previously a new blob URL was created on every render inside JSX, leaking memory).
@@ -170,6 +176,14 @@ export function GenerateStep() {
       return
     }
 
+    // Synchronous re-entry guard. setIsGenerating is async, so a fast double
+    // click can enter twice before the button disables; without this the second
+    // call reaches processVideo's module-level mutex and is rejected down the
+    // failure path below, which would mark the project failed while the FIRST
+    // run is still encoding.
+    if (generationLock.current) return
+    generationLock.current = true
+
     setIsGenerating(true)
     setGenerationProgress({ progress: 0, stage: "starting", message: "Starting video generation..." })
     dispatch({ type: "SET_ERROR", error: null })
@@ -202,7 +216,7 @@ export function GenerateStep() {
           backgroundUrl,
           script: state.project.script,
           format: state.project.video_settings?.format || "vertical",
-          quality: state.project.video_settings?.quality || "1080p",
+          quality: state.project.video_settings?.quality || "720p",
           captions: captionsEnabled,
           projectId: state.project.id,
           voiceSpeed: state.project.voice_settings?.speed || 1.0,
@@ -221,7 +235,7 @@ export function GenerateStep() {
 
       setGenerationProgress({ progress: 85, stage: "uploading", message: "Uploading directly to cloud storage..." })
 
-      const quality = state.project.video_settings?.quality || "1080p"
+      const quality = state.project.video_settings?.quality || "720p"
       const parsedDuration = Number.parseInt(String(state.project.video_settings?.duration ?? ""), 10)
       const duration = Number.isFinite(parsedDuration) ? parsedDuration : 60
 
@@ -295,7 +309,12 @@ export function GenerateStep() {
 
       dispatch({ type: "SET_ERROR", error: errorMessage })
 
-      if (state.project.id) {
+      // A re-entry rejection means ANOTHER generation is still running for this
+      // project. Surface the message, but never write "failed" — that would
+      // mislabel a run that is still encoding successfully.
+      const isBusyRejection = error instanceof Error && error.message.includes("already being generated")
+
+      if (state.project.id && !isBusyRejection) {
         try {
           await updateProject(state.project.id, { status: "failed" })
         } catch (updateError) {
@@ -303,6 +322,7 @@ export function GenerateStep() {
         }
       }
     } finally {
+      generationLock.current = false
       setIsGenerating(false)
     }
   }
@@ -375,7 +395,7 @@ export function GenerateStep() {
             </div>
             <div>
               <span className="text-gray-400">Quality:</span>
-              <span className="text-white ml-2">{state.project.video_settings?.quality || "1080p"}</span>
+              <span className="text-white ml-2">{state.project.video_settings?.quality || "720p"}</span>
             </div>
             <div>
               <span className="text-gray-400">Captions:</span>
@@ -385,9 +405,7 @@ export function GenerateStep() {
             </div>
             <div>
               <span className="text-gray-400">Background:</span>
-              <span className="text-white ml-2">
-                {state.project.video_settings?.background?.startsWith("generated-") ? "Custom AI" : "Preset"}
-              </span>
+              <span className="text-white ml-2">{BACKGROUND_KIND_LABELS[backgroundKind]}</span>
             </div>
           </div>
         </div>
@@ -437,29 +455,11 @@ export function GenerateStep() {
               <div className="flex-shrink-0">
                 <div className="aspect-[9/16] w-48 mx-auto bg-black rounded-lg overflow-hidden border border-white/20">
                   {videoUrl ? (
-                    <video
-                      src={videoUrl}
-                      controls
-                      className="w-full h-full object-cover"
-                      poster={
-                        state.project.video_settings?.background?.startsWith("saved-")
-                          ? undefined
-                          : state.project.video_settings?.background
-                      }
-                    >
+                    <video src={videoUrl} controls className="w-full h-full object-cover">
                       Your browser does not support the video tag.
                     </video>
                   ) : localVideoUrl ? (
-                    <video
-                      src={localVideoUrl}
-                      controls
-                      className="w-full h-full object-cover"
-                      poster={
-                        state.project.video_settings?.background?.startsWith("saved-")
-                          ? undefined
-                          : state.project.video_settings?.background
-                      }
-                    >
+                    <video src={localVideoUrl} controls className="w-full h-full object-cover">
                       Your browser does not support the video tag.
                     </video>
                   ) : (
@@ -469,7 +469,7 @@ export function GenerateStep() {
                         <p className="text-white text-sm">Video Preview</p>
                         <p className="text-gray-400 text-xs mt-1">
                           {state.project.video_settings?.format || "vertical"} •{" "}
-                          {state.project.video_settings?.quality || "1080p"}
+                          {state.project.video_settings?.quality || "720p"}
                         </p>
                       </div>
                     </div>

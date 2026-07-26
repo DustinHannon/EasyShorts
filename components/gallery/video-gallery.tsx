@@ -43,17 +43,7 @@ export function VideoGallery({ videos }: VideoGalleryProps) {
     if (!video.background_url || failedBackgrounds.has(video.background_url)) {
       return null
     }
-
-    let backgroundUrl = video.background_url
-    if (video.background_type === "preset") {
-      backgroundUrl = video.background_url
-    } else if (video.background_type?.startsWith("saved-")) {
-      backgroundUrl = video.background_url
-    } else if (video.background_type === "custom") {
-      backgroundUrl = video.background_url
-    }
-
-    return backgroundUrl
+    return video.background_url
   }
 
   const handleBackgroundError = (backgroundUrl: string) => {

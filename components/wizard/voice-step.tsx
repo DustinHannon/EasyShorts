@@ -118,14 +118,21 @@ export function VoiceStep() {
       })
 
       if (!response.ok) {
-        throw new Error("Failed to generate speech")
+        // Surface the API's real message (e.g. the 429 daily-cap notice) instead
+        // of a generic string the user can only respond to by retrying forever.
+        const body = await response.json().catch(() => ({}))
+        throw new Error(body?.error || `Request failed (${response.status})`)
       }
 
       const audioBlob = await response.blob()
       const url = URL.createObjectURL(audioBlob)
       setAudioUrl(url)
     } catch (error) {
-      dispatch({ type: "SET_ERROR", error: "Failed to generate voice preview. Please try again." })
+      console.error("Voice preview generation failed:", error)
+      dispatch({
+        type: "SET_ERROR",
+        error: error instanceof Error ? error.message : "Failed to generate voice preview. Please try again.",
+      })
     } finally {
       setIsGenerating(false)
     }

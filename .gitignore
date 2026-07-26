@@ -120,3 +120,6 @@ temp/
 # Claude
 **/CLAUDE.md
 .env*.local
+
+# Deep review artifacts
+.deep-review/

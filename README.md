@@ -31,7 +31,7 @@ EasyShorts is an AI-powered video creation platform that transforms text ideas i
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 20.9+
 - pnpm
 
 ### Local Development
@@ -71,14 +71,14 @@ Run the complete schema setup against your Supabase project:
 psql -f scripts/full-database-setup.sql
 ```
 
-This creates 4 tables with RLS policies: `profiles`, `projects`, `backgrounds`, `generated_videos`.
+This creates 5 tables with RLS policies: `profiles`, `projects`, `backgrounds`, `generated_videos`, `ai_usage` (per-user daily AI quota counters).
 
 ## Key Features
 
 - **Hook-first AI Scripts** - Retention-optimized, hook-first scripts with GPT-5.4, plus a live duration/word-count estimate and a sub-60s monetization warning
 - **Niche Templates** - One-click presets for top faceless formats (Reddit story, scary story, motivation, finance, did-you-know, history)
 - **Multi-voice TTS** - Natural speech synthesis via gpt-4o-mini-tts
-- **Background Library** - 24 built-in presets across 6 categories, plus upload or AI-generate (gpt-image-1.5)
+- **Background Library** - 24 built-in presets across 7 categories, plus upload or AI-generate (gpt-image-1.5)
 - **Audio-synced Captions** - Word-level timing via OpenAI Whisper (`OPENAI_API_KEY`), with graceful fallback to estimated timing
 - **Ken Burns Backgrounds** - Optional slow zoom-in / zoom-out / pan animation on the background (FFmpeg `zoompan`)
 - **Editable Review** - Edit the script on the final step before rendering
@@ -100,7 +100,7 @@ This creates 4 tables with RLS policies: `profiles`, `projects`, `backgrounds`, 
 | `/api/background/record` | POST | Persist uploaded-background metadata to the database |
 | `/api/video-progress/[projectId]` | GET | Track video generation progress |
 
-Video and background **deletes** go through server actions (`lib/supabase/actions.ts`), not API routes. All AI endpoints enforce a per-user daily quota via the `consume_ai_quota` Postgres function.
+Video and background **deletes** go through server actions (`lib/supabase/actions.ts`), not API routes. All AI endpoints enforce a per-user daily quota via the `consume_ai_quota` Postgres function (script 50/day, speech 50/day, image 20/day, transcribe 50/day).
 
 ## Database Schema
 
@@ -108,6 +108,7 @@ Video and background **deletes** go through server actions (`lib/supabase/action
 - **projects** - Video project metadata, scripts, settings, and progress tracking
 - **backgrounds** - User-uploaded and AI-generated backgrounds
 - **generated_videos** - Final video outputs with metadata
+- **ai_usage** - Per-user daily AI quota counters (written only by the `consume_ai_quota` function)
 
 All tables use Row Level Security (RLS) — users can only access their own data.
 

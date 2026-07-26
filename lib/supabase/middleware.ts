@@ -11,7 +11,10 @@ export const isSupabaseConfigured =
 export async function updateSession(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  const isAuthRoute =
+  // Routes reachable without a session: the marketing landing page plus the
+  // auth screens. Everything else requires an authenticated user.
+  const isPublicRoute =
+    pathname === "/" ||
     pathname.startsWith("/auth/login") ||
     pathname.startsWith("/auth/sign-up") ||
     pathname === "/auth/callback"
@@ -19,7 +22,7 @@ export async function updateSession(request: NextRequest) {
   // If Supabase is not configured, fail closed in production (block protected
   // routes) but stay out of the way during local dev so the app still boots.
   if (!isSupabaseConfigured) {
-    if (process.env.NODE_ENV === "production" && !isAuthRoute) {
+    if (process.env.NODE_ENV === "production" && !isPublicRoute) {
       if (pathname.startsWith("/api")) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
       }
@@ -63,10 +66,22 @@ export async function updateSession(request: NextRequest) {
       console.error("Auth code exchange failed:", error.message)
       return NextResponse.redirect(new URL("/auth/login", request.url))
     }
-    // Honor a validated relative `next` param; reject anything that isn't an
-    // in-app path (including protocol-relative "//host" open-redirect attempts).
+    // Honor a `next` param only when it resolves to this same origin. Prefix
+    // blacklisting is not sufficient here: the WHATWG URL parser treats "\"
+    // like "/" for http(s), so "/\evil.com" would slip past a "//" check and
+    // resolve to https://evil.com/. Resolving and comparing origins is exact.
     const nextParam = requestUrl.searchParams.get("next")
-    const redirectTo = nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : "/"
+    let redirectTo = "/"
+    if (nextParam) {
+      try {
+        const candidate = new URL(nextParam, requestUrl.origin)
+        if (candidate.origin === requestUrl.origin) {
+          redirectTo = candidate.pathname + candidate.search + candidate.hash
+        }
+      } catch {
+        // Malformed `next` — fall through to "/".
+      }
+    }
     return NextResponse.redirect(new URL(redirectTo, request.url))
   }
 
@@ -77,7 +92,7 @@ export async function updateSession(request: NextRequest) {
 
   // Protected routes - block if not authenticated. APIs get a JSON 401 instead
   // of a 307 redirect to the HTML login page.
-  if (!isAuthRoute && !user) {
+  if (!isPublicRoute && !user) {
     if (pathname.startsWith("/api")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }

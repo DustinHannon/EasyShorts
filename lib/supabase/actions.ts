@@ -65,7 +65,7 @@ export async function updateProject(
   if (error) throw error
 
   revalidatePath("/dashboard")
-  revalidatePath(`/project/${projectId}`)
+  revalidatePath(`/create/${projectId}`)
   return data
 }
 
@@ -82,6 +82,30 @@ export async function deleteProject(projectId: string) {
   if (error) throw error
 
   revalidatePath("/dashboard")
+}
+
+// BLOB_READ_WRITE_TOKEN is store-wide, not user-scoped, so `del()` will happily
+// delete ANY blob in the store. Before deleting we re-check that the URL really
+// sits under the caller's own prefix — defence in depth behind the ownership
+// checks in /api/background/record and /api/video/record, so that a row which
+// somehow points elsewhere can never destroy another tenant's file.
+// NOTE: rows created BEFORE per-user prefixes existed point at store-root keys
+// (verified 2026-07-26: all 6 rows then in `backgrounds` were root-level
+// `ai-generated-*.png`). Those blobs are deliberately left behind — an orphaned
+// blob is recoverable, deleting someone else's file is not. Every write path
+// now emits a `users/<uid>/` key (client uploads AND /api/generate-image), so
+// this only affects that pre-existing set, which will not grow.
+function isOwnedBlobUrl(url: string, userId: string): boolean {
+  try {
+    const parsed = new URL(url)
+    return (
+      parsed.protocol === "https:" &&
+      parsed.hostname.endsWith(".public.blob.vercel-storage.com") &&
+      parsed.pathname.startsWith(`/users/${userId}/`)
+    )
+  } catch {
+    return false
+  }
 }
 
 // Background management actions
@@ -102,17 +126,20 @@ export async function deleteBackground(backgroundId: string) {
 
   if (fetchError) throw fetchError
 
-  if (background?.url) {
-    try {
-      await del(background.url)
-    } catch (blobError) {
-      console.warn("Failed to delete blob file:", blobError)
-    }
-  }
-
+  // Row first, blob second: if the blob delete fails we leak a file (invisible,
+  // recoverable). The other order leaves a row pointing at a deleted blob, which
+  // the user sees as a permanently broken background.
   const { error } = await supabase.from("backgrounds").delete().eq("id", backgroundId).eq("user_id", user.id)
 
   if (error) throw error
+
+  if (background?.url && isOwnedBlobUrl(background.url, user.id)) {
+    try {
+      await del(background.url)
+    } catch (blobError) {
+      console.warn("Failed to delete background blob:", backgroundId, blobError)
+    }
+  }
 
   revalidatePath("/dashboard")
   revalidatePath("/gallery")
@@ -136,17 +163,18 @@ export async function deleteVideo(videoId: string) {
 
   if (fetchError) throw fetchError
 
-  if (video?.url) {
-    try {
-      await del(video.url)
-    } catch (blobError) {
-      console.warn("Failed to delete blob file:", blobError)
-    }
-  }
-
+  // Row first, blob second — see the note in deleteBackground.
   const { error } = await supabase.from("generated_videos").delete().eq("id", videoId).eq("user_id", user.id)
 
   if (error) throw error
+
+  if (video?.url && isOwnedBlobUrl(video.url, user.id)) {
+    try {
+      await del(video.url)
+    } catch (blobError) {
+      console.warn("Failed to delete video blob:", videoId, blobError)
+    }
+  }
 
   revalidatePath("/dashboard")
   revalidatePath("/gallery")

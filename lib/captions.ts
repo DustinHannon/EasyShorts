@@ -19,7 +19,9 @@ function cleanForDrawtext(text: string): string {
     .replace(/[%]/g, " percent ")
     .replace(/[\\]/g, "")
     .replace(/[\n\r\t]/g, " ")
-    .replace(/[^\w\s.,!?-]/g, "")
+    // Unicode-aware: bare \w is [A-Za-z0-9_], which would delete accents
+    // ("años" -> "aos") and strip non-Latin scripts to nothing at all.
+    .replace(/[^\p{L}\p{N}\s.,!?-]/gu, "")
     .replace(/\s+/g, " ")
     .substring(0, 120)
     .trim()

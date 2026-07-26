@@ -41,6 +41,10 @@ export function SettingsStep() {
       if (state.project.id) {
         await updateProject(state.project.id, { video_settings: videoSettings })
       }
+      // Write the merged settings back into wizard state — persisting to the DB
+      // alone leaves `state.project.video_settings` without the defaults the
+      // user just confirmed (GenerateStep would fall back to its own defaults).
+      dispatch({ type: "UPDATE_PROJECT", updates: { video_settings: videoSettings } })
       dispatch({ type: "SET_STEP", step: 5 })
     } catch (error) {
       dispatch({ type: "SET_ERROR", error: "Failed to save video settings" })

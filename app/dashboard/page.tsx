@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Plus, Video, CheckCircle, GalleryThumbnailsIcon as Gallery, LogOut } from "lucide-react"
+import { Plus, Video, CheckCircle, GalleryThumbnailsIcon as Gallery, LogOut, AlertTriangle } from "lucide-react"
 import Link from "next/link"
 import { ProjectCard } from "@/components/project-card"
 import { signOut } from "@/lib/actions"
@@ -18,22 +18,29 @@ export default async function Dashboard() {
   }
 
   // Fetch user's projects
-  const { data: projects } = await supabase
+  const { data: projects, error: projectsError } = await supabase
     .from("projects")
     .select("*")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
 
+  if (projectsError) {
+    console.error("Dashboard: failed to load projects", projectsError)
+  }
+
   // Count the user's generated videos (exact count, no rows fetched)
-  const { count: completedVideosCount } = await supabase
+  const { count: completedVideosCount, error: countError } = await supabase
     .from("generated_videos")
     .select("*", { count: "exact", head: true })
     .eq("user_id", user.id)
 
+  if (countError) {
+    console.error("Dashboard: failed to load video count", countError)
+  }
+
   const stats = {
     totalProjects: projects?.length || 0,
     completedVideos: completedVideosCount || 0,
-    inProgress: projects?.filter((p) => p.status === "processing").length || 0,
   }
 
   return (
@@ -100,7 +107,17 @@ export default async function Dashboard() {
         {/* Projects Section */}
         <div className="mb-8">
           <h2 className="text-2xl font-semibold text-white mb-4">Recent Projects</h2>
-          {projects && projects.length > 0 ? (
+          {projectsError ? (
+            <Card className="bg-white/10 backdrop-blur-sm border-white/20">
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <AlertTriangle className="h-12 w-12 text-amber-400 mb-4" />
+                <h3 className="text-lg font-medium text-white mb-2">Couldn&apos;t load your projects</h3>
+                <p className="text-gray-400 text-center">
+                  Something went wrong reaching the database. Refresh the page to try again — your projects are safe.
+                </p>
+              </CardContent>
+            </Card>
+          ) : projects && projects.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {projects.map((project) => (
                 <ProjectCard key={project.id} project={project} />

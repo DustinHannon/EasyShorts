@@ -8,7 +8,7 @@ EasyShorts follows a modern full-stack architecture with clear separation of con
 - **Next.js App Router**: Server-side rendering with client-side interactivity
 - **Component-based Design**: Modular UI components with shadcn/ui
 - **State Management**: React hooks and context for local state
-- **Form Handling**: React Hook Form with Zod schema validation
+- **Form Handling**: Plain controlled React state (`useState`) — no form library or client-side schema validation; inputs are validated server-side in the API routes
 - **Styling**: Tailwind CSS with custom design system
 
 ### Backend Architecture
@@ -77,11 +77,22 @@ EasyShorts follows a modern full-stack architecture with clear separation of con
 - created_at (timestamptz)
 ```
 
+#### ai_usage
+```sql
+- user_id (uuid, foreign key -> auth.users, cascade delete)
+- day (date, default (now() at time zone 'utc')::date)
+- kind (text)
+- count (integer, default 0)
+- primary key (user_id, day, kind)
+```
+
+Quota counters are **read-only to clients**: the table has a SELECT policy only and no INSERT/UPDATE policy. All mutation happens through the SECURITY DEFINER function `consume_ai_quota(p_kind text, p_limit integer)`, which increments the counter and returns `false` once the day's limit is reached (the calling route then returns 429). Current per-day limits: script = 50, speech = 50, image = 20, transcribe = 50.
+
 ### Security Model
 
 Row Level Security (RLS) policies ensure data isolation:
 - Users can only access their own profiles, projects, backgrounds, and videos
-- Service role bypasses RLS for admin operations
+- No service-role key is used anywhere; every server route and server action uses the cookie-bound anon-key client, so RLS is always enforced
 - JWT tokens validate user identity on each request
 
 ## API Design
@@ -108,16 +119,16 @@ Row Level Security (RLS) policies ensure data isolation:
 ## Performance Considerations
 
 ### Frontend Optimization
-- **Code Splitting**: Dynamic imports for heavy components
-- **Image Optimization**: Next.js Image component with lazy loading
-- **Bundle Analysis**: Regular bundle size monitoring
+- **Code Splitting**: No `next/dynamic` boundaries exist — the App Router's per-route splitting is the only division. The one genuinely heavy asset is the FFmpeg.wasm core, which is fetched lazily at render time rather than bundled
+- **Image Optimization**: Next.js image optimization is disabled (`images.unoptimized: true` in `next.config.mjs`); backgrounds are served as static assets from `public/` and from Vercel Blob
+- **Bundle Analysis**: Not set up — no bundle analyzer is installed and no size budget is enforced
 - **Caching**: Aggressive caching of static assets
 
 ### Backend Optimization
 - **Database Indexing**: Optimized queries with proper indexes
 - **Connection Pooling**: Supabase handles connection management
 - **File Storage**: CDN delivery via Vercel Blob
-- **API Rate Limiting**: Prevent abuse with request throttling
+- **AI Quotas**: Per-user daily quotas on the AI routes via the `consume_ai_quota` RPC (429 when exhausted); there is no general request throttling
 
 ### Video Processing
 - **Client-side Processing**: Single-threaded FFmpeg.wasm in the browser — no server compute (Vercel serverless is too constrained for video encoding). The multi-threaded core (`@ffmpeg/core-mt`) was evaluated and is **not viable here**: it requires COEP cross-origin isolation, which breaks the FFmpeg worker load under Next 16 + Turbopack.
@@ -174,13 +185,13 @@ pnpm dev
 
 ### Code Standards
 - TypeScript for type safety
-- ESLint and Prettier for code formatting
+- ESLint only (flat config in `eslint.config.mjs`, run via `pnpm lint`); no Prettier is installed — formatting follows existing file style
 - Conventional commits for version control
 
 ### Version Control
-- Feature branch workflow
-- Pull request reviews required
-- Automated deployment on merge to main
+- Sole engineer; commits go directly to `main`
+- No pull-request gate — correctness is enforced by running `pnpm exec tsc --noEmit`, `pnpm lint`, and `pnpm build` before pushing
+- Pushing `main` triggers the Vercel production deploy
 
 ## Future Enhancements
 

@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { BackgroundActions } from "./background-actions"
 import { Search, Filter, Grid, List, Upload } from "lucide-react"
 import { upload } from "@vercel/blob/client"
+import { createClient } from "@/lib/supabase/client"
 import { toast } from "@/hooks/use-toast"
 
 interface Background {
@@ -45,15 +46,14 @@ export function BackgroundGallery({ backgrounds, onUpload }: BackgroundGalleryPr
 
   const filteredBackgrounds = items
     .filter((bg) => {
-      if (!searchTerm) return true
       const searchLower = String(searchTerm || "").toLowerCase()
-      const matchesSearch = String(bg.filename || "")
-        .toLowerCase()
-        .includes(searchLower)
-      const matchesType =
-        filterType === "all" ||
-        (filterType === "image" && bg.mime_type?.startsWith("image/")) ||
-        (filterType === "video" && bg.mime_type?.startsWith("video/"))
+      const matchesSearch =
+        !searchLower ||
+        String(bg.filename || "")
+          .toLowerCase()
+          .includes(searchLower)
+      // Backgrounds are images only — there is no video mime type to match on.
+      const matchesType = filterType === "all" || (filterType === "image" && bg.mime_type?.startsWith("image/"))
       return matchesSearch && matchesType
     })
     .sort((a, b) => {
@@ -110,7 +110,17 @@ export function BackgroundGallery({ backgrounds, onUpload }: BackgroundGalleryPr
 
     setIsUploading(true)
     try {
-      const blob = await upload(file.name, file, {
+      // Upload under the per-user prefix /api/background/upload enforces, so
+      // one tenant's blobs can never be claimed or deleted by another.
+      const supabase = createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) {
+        throw new Error("Upload failed: not authenticated")
+      }
+
+      const blob = await upload(`users/${user.id}/backgrounds/${file.name}`, file, {
         access: "public",
         handleUploadUrl: "/api/background/upload",
       })
@@ -212,9 +222,6 @@ export function BackgroundGallery({ backgrounds, onUpload }: BackgroundGalleryPr
               <SelectItem value="image" className="text-white">
                 Images
               </SelectItem>
-              <SelectItem value="video" className="text-white">
-                Videos
-              </SelectItem>
             </SelectContent>
           </Select>
           <Select value={sortBy} onValueChange={setSortBy}>
@@ -242,6 +249,8 @@ export function BackgroundGallery({ backgrounds, onUpload }: BackgroundGalleryPr
           <Button
             variant={viewMode === "grid" ? "default" : "outline"}
             size="sm"
+            aria-label="Grid view"
+            aria-pressed={viewMode === "grid"}
             onClick={() => setViewMode("grid")}
             className={
               viewMode === "grid"
@@ -254,6 +263,8 @@ export function BackgroundGallery({ backgrounds, onUpload }: BackgroundGalleryPr
           <Button
             variant={viewMode === "list" ? "default" : "outline"}
             size="sm"
+            aria-label="List view"
+            aria-pressed={viewMode === "list"}
             onClick={() => setViewMode("list")}
             className={
               viewMode === "list"

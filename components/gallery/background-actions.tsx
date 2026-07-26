@@ -32,11 +32,20 @@ export function BackgroundActions({ background }: BackgroundActionsProps) {
   }
 
   const handleCopyLink = async () => {
-    await navigator.clipboard.writeText(background.file_path)
-    toast({
-      title: "Link copied",
-      description: "Background link copied to clipboard",
-    })
+    try {
+      await navigator.clipboard.writeText(background.file_path)
+      toast({
+        title: "Link copied",
+        description: "Background link copied to clipboard",
+      })
+    } catch (error) {
+      console.error("Clipboard write failed:", error)
+      toast({
+        title: "Copy failed",
+        description: "Could not copy the link to your clipboard",
+        variant: "destructive",
+      })
+    }
   }
 
   const handlePreview = () => {
@@ -53,6 +62,7 @@ export function BackgroundActions({ background }: BackgroundActionsProps) {
             description: "The background has been successfully deleted",
           })
         } catch (error) {
+          console.error("Failed to delete background:", error)
           toast({
             title: "Error",
             description: "Failed to delete background",

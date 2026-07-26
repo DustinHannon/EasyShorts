@@ -96,7 +96,10 @@ export function BackgroundStep() {
       })
 
       if (!response.ok) {
-        throw new Error("Failed to generate image")
+        // Surface the API's real message (e.g. the 429 daily-cap notice) instead
+        // of a generic string the user can only respond to by retrying forever.
+        const body = await response.json().catch(() => ({}))
+        throw new Error(body?.error || `Request failed (${response.status})`)
       }
 
       const { imageUrl, saved } = await response.json()
@@ -123,7 +126,11 @@ export function BackgroundStep() {
         }
       }
     } catch (error) {
-      dispatch({ type: "SET_ERROR", error: "Failed to generate background. Please try again." })
+      console.error("Background generation failed:", error)
+      dispatch({
+        type: "SET_ERROR",
+        error: error instanceof Error ? error.message : "Failed to generate background. Please try again.",
+      })
     } finally {
       setIsGenerating(false)
     }
@@ -143,7 +150,17 @@ export function BackgroundStep() {
     dispatch({ type: "SET_ERROR", error: null })
 
     try {
-      const blob = await upload(file.name, file, {
+      // Upload under the per-user prefix /api/background/upload enforces, so
+      // one tenant's blobs can never be claimed or deleted by another.
+      const supabase = createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) {
+        throw new Error("Upload failed: not authenticated")
+      }
+
+      const blob = await upload(`users/${user.id}/backgrounds/${file.name}`, file, {
         access: "public",
         handleUploadUrl: "/api/background/upload",
       })
@@ -157,7 +174,8 @@ export function BackgroundStep() {
       })
 
       if (!response.ok) {
-        throw new Error("Failed to save background")
+        const body = await response.json().catch(() => ({}))
+        throw new Error(body?.error || `Request failed (${response.status})`)
       }
 
       const { background } = (await response.json()) as { background: SavedBackground }
@@ -167,8 +185,20 @@ export function BackgroundStep() {
       setSavedBackgrounds((prev) => [background, ...prev])
       setSelectedBackground(`saved-${background.id}`)
     } catch (error) {
-      console.error("Upload error:", error)
-      dispatch({ type: "SET_ERROR", error: "Failed to upload background. Please try again." })
+      console.error("Background upload failed:", error)
+      // @vercel/blob's client throws BlobError("Failed to  retrieve the client
+      // token") and discards the route's response body, so its message is raw
+      // library text (typo included) and tells the user nothing. Only surface a
+      // message we actually authored — i.e. one thrown from the
+      // /api/background/record check above.
+      const isBlobSdkError = error instanceof Error && error.name === "BlobError"
+      dispatch({
+        type: "SET_ERROR",
+        error:
+          error instanceof Error && !isBlobSdkError
+            ? error.message
+            : "Failed to upload background. Please try again.",
+      })
     } finally {
       setIsUploading(false)
       // Reset file input
@@ -345,7 +375,7 @@ export function BackgroundStep() {
                     alt={bg.name}
                     className="w-full h-32 object-contain bg-black/20"
                   />
-                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 focus-within:opacity-100 transition-opacity">
                     <span className="text-white text-xs font-medium text-center px-2">{bg.name}</span>
                   </div>
                   {String(bg.name).startsWith("AI Generated:") && (
@@ -386,7 +416,7 @@ export function BackgroundStep() {
                     alt={`Generated ${index + 1}`}
                     className="w-full h-32 object-cover"
                   />
-                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 focus-within:opacity-100 transition-opacity">
                     <Button
                       size="sm"
                       variant="destructive"

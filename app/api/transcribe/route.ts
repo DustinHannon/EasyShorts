@@ -14,7 +14,7 @@ const MAX_AUDIO_BYTES = 25 * 1024 * 1024 // OpenAI's hard limit
 // video generation.
 export async function POST(request: NextRequest) {
   try {
-    const { user } = await getRouteUser()
+    const { supabase, user } = await getRouteUser()
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
@@ -32,6 +32,19 @@ export async function POST(request: NextRequest) {
     }
     if (file.size === 0 || file.size > MAX_AUDIO_BYTES) {
       return NextResponse.json({ words: [], configured: true, error: "invalid_size" })
+    }
+
+    // Whisper is a paid endpoint — gate it on the same daily quota as the other
+    // AI routes, consumed after validation so malformed requests cost nothing.
+    // Still 200 on denial: the client falls back to estimated caption timing
+    // rather than failing the render.
+    const { data: allowed, error: quotaErr } = await supabase.rpc("consume_ai_quota", {
+      p_kind: "transcribe",
+      p_limit: 50,
+    })
+    if (quotaErr || allowed !== true) {
+      if (quotaErr) console.error("Quota check error (transcribe):", quotaErr)
+      return NextResponse.json({ words: [], configured: true, error: "quota" })
     }
 
     const upstream = new FormData()

@@ -32,6 +32,13 @@ export async function POST(req: NextRequest) {
     if (parsed.protocol !== "https:" || !parsed.hostname.endsWith(".public.blob.vercel-storage.com")) {
       return NextResponse.json({ error: "Invalid request" }, { status: 400 })
     }
+    // The host check alone is NOT enough: all users share one Blob store, so
+    // without binding the URL to the caller's own prefix anyone could record a
+    // row pointing at someone else's blob and then have deleteBackground() del()
+    // it with the store-wide write token. /api/video/record already does this.
+    if (!parsed.pathname.startsWith(`/users/${user.id}/`)) {
+      return NextResponse.json({ error: "Invalid request" }, { status: 400 })
+    }
 
     // Validate name: non-empty string, capped at 200 chars, fallback "background".
     let safeName = typeof name === "string" ? name.trim() : ""

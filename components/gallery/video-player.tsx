@@ -1,6 +1,5 @@
 "use client"
 
-import { useState, useRef } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { VideoActions } from "./video-actions"
@@ -27,34 +26,6 @@ interface VideoPlayerProps {
 }
 
 export function VideoPlayer({ video, onClose }: VideoPlayerProps) {
-  const [isPlaying, setIsPlaying] = useState(false)
-  const [isMuted, setIsMuted] = useState(false)
-  const videoRef = useRef<HTMLVideoElement>(null)
-
-  const handlePlayPause = () => {
-    if (videoRef.current) {
-      if (isPlaying) {
-        videoRef.current.pause()
-      } else {
-        videoRef.current.play()
-      }
-      setIsPlaying(!isPlaying)
-    }
-  }
-
-  const handleMute = () => {
-    if (videoRef.current) {
-      videoRef.current.muted = !isMuted
-      setIsMuted(!isMuted)
-    }
-  }
-
-  const handleFullscreen = () => {
-    if (videoRef.current) {
-      videoRef.current.requestFullscreen()
-    }
-  }
-
   const formatFileSize = (bytes: number): string => {
     const sizes = ["Bytes", "KB", "MB", "GB"]
     if (bytes === 0) return "0 Bytes"
@@ -80,15 +51,7 @@ export function VideoPlayer({ video, onClose }: VideoPlayerProps) {
           {/* Video Player */}
           <div className="relative bg-black rounded-lg overflow-hidden">
             <div className="aspect-video">
-              <video
-                ref={videoRef}
-                src={video.file_path}
-                className="w-full h-full object-contain"
-                controls
-                onPlay={() => setIsPlaying(true)}
-                onPause={() => setIsPlaying(false)}
-                onVolumeChange={(e) => setIsMuted((e.target as HTMLVideoElement).muted)}
-              >
+              <video src={video.file_path} className="w-full h-full object-contain" controls>
                 Your browser does not support the video tag.
               </video>
             </div>
@@ -141,7 +104,7 @@ export function VideoPlayer({ video, onClose }: VideoPlayerProps) {
 
               <div>
                 <h3 className="text-lg font-semibold text-white mb-2">Actions</h3>
-                <VideoActions video={video} showLabels />
+                <VideoActions video={video} showLabels onDeleted={onClose} />
               </div>
             </div>
           </div>

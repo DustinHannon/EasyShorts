@@ -12,19 +12,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { data: allowed, error: quotaErr } = await supabase.rpc("consume_ai_quota", {
-      p_kind: "script",
-      p_limit: 50,
-    })
-    if (quotaErr) {
-      console.error("Quota check error (script):", quotaErr)
-    } else if (allowed === false) {
-      return NextResponse.json(
-        { error: "Daily generation limit reached. Try again tomorrow." },
-        { status: 429 },
-      )
-    }
-
     let body
     try {
       body = await request.json()
@@ -45,6 +32,16 @@ export async function POST(request: NextRequest) {
     if (body.audience !== undefined && typeof body.audience !== "string") {
       return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
     }
+    if (
+      body.duration !== undefined &&
+      typeof body.duration !== "string" &&
+      typeof body.duration !== "number"
+    ) {
+      return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+    }
+    if (body.niche !== undefined && body.niche !== null && typeof body.niche !== "string") {
+      return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+    }
 
     const topic = String(body.topic || "").trim()
     const style = String(body.style || "engaging").trim()
@@ -62,11 +59,33 @@ export async function POST(request: NextRequest) {
     if (style.length > 100 || audience.length > 100) {
       return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
     }
+    // `duration` is interpolated into the prompt twice — cap it hard.
+    if (duration.length > 10) {
+      return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+    }
 
     const apiKey = process.env.AZURE_AI_KEY
     if (!apiKey) {
       console.error("Missing AZURE_AI_KEY")
       return NextResponse.json({ error: "Server configuration error" }, { status: 500 })
+    }
+
+    // Quota is consumed (incremented) here, AFTER validation and the config
+    // check, so malformed or misconfigured requests can't burn a user's budget —
+    // but before the paid Azure call, which it gates. Fails CLOSED.
+    const { data: allowed, error: quotaErr } = await supabase.rpc("consume_ai_quota", {
+      p_kind: "script",
+      p_limit: 50,
+    })
+    if (quotaErr) {
+      console.error("Quota check error (script):", quotaErr)
+      return NextResponse.json({ error: "Service temporarily unavailable" }, { status: 503 })
+    }
+    if (allowed !== true) {
+      return NextResponse.json(
+        { error: "Daily generation limit reached. Try again tomorrow." },
+        { status: 429 },
+      )
     }
 
     const targetWords = Math.round((Number.parseInt(duration, 10) || 60) * 2.5)

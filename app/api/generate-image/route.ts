@@ -34,19 +34,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { data: allowed, error: quotaErr } = await supabase.rpc("consume_ai_quota", {
-      p_kind: "image",
-      p_limit: 20,
-    })
-    if (quotaErr) {
-      console.error("Quota check error (image):", quotaErr)
-    } else if (allowed === false) {
-      return NextResponse.json(
-        { error: "Daily generation limit reached. Try again tomorrow." },
-        { status: 429 },
-      )
-    }
-
     let body
     try {
       body = await request.json()
@@ -79,6 +66,24 @@ export async function POST(request: NextRequest) {
 
     const safeStyle = typeof style === "string" ? style.slice(0, 100) : "digital art"
     const safeSize = typeof size === "string" && VALID_SIZES.includes(size) ? size : DEFAULT_SIZE
+
+    // Quota is consumed (incremented) here, AFTER validation, so malformed
+    // requests can't burn a user's budget — but before the paid Azure call,
+    // which it gates. Fails CLOSED.
+    const { data: allowed, error: quotaErr } = await supabase.rpc("consume_ai_quota", {
+      p_kind: "image",
+      p_limit: 20,
+    })
+    if (quotaErr) {
+      console.error("Quota check error (image):", quotaErr)
+      return NextResponse.json({ error: "Service temporarily unavailable" }, { status: 503 })
+    }
+    if (allowed !== true) {
+      return NextResponse.json(
+        { error: "Daily generation limit reached. Try again tomorrow." },
+        { status: 429 },
+      )
+    }
 
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), AZURE_TIMEOUT_MS)
@@ -157,11 +162,15 @@ export async function POST(request: NextRequest) {
       imageBuffer = await imageResponse.arrayBuffer()
     }
 
-    // Always upload to Vercel Blob to get a permanent URL
-    const filename = `ai-generated-${Date.now()}.png`
+    // Always upload to Vercel Blob to get a permanent URL, under the SAME
+    // per-user prefix the client upload path uses. This is what lets
+    // deleteBackground() verify ownership before del()-ing with the store-wide
+    // token — a root-level key would be skipped and leak the blob forever.
+    const filename = `users/${user.id}/backgrounds/ai-generated-${Date.now()}.png`
     const blob = await put(filename, imageBuffer, {
       access: "public",
       contentType: "image/png",
+      addRandomSuffix: true,
     })
 
     if (saveToGallery) {

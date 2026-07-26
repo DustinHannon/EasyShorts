@@ -21,9 +21,11 @@ interface Video {
 interface VideoActionsProps {
   video: Video
   showLabels?: boolean
+  /** Called after the video row is successfully deleted (e.g. to close a modal). */
+  onDeleted?: () => void
 }
 
-export function VideoActions({ video, showLabels = false }: VideoActionsProps) {
+export function VideoActions({ video, showLabels = false, onDeleted }: VideoActionsProps) {
   const [isPending, startTransition] = useTransition()
 
   const handleDownload = () => {
@@ -45,24 +47,54 @@ export function VideoActions({ video, showLabels = false }: VideoActionsProps) {
           url: video.file_path,
         })
       } catch (error) {
-        // User cancelled sharing
+        // AbortError means the user dismissed the share sheet — nothing to do.
+        // Any other rejection is a real failure, so fall back to the clipboard.
+        if (error instanceof Error && error.name === "AbortError") return
+        console.error("Share failed:", error)
+        try {
+          await navigator.clipboard.writeText(video.file_path)
+          toast({
+            title: "Link copied",
+            description: "Video link copied to clipboard",
+          })
+        } catch (clipboardError) {
+          console.error("Clipboard fallback failed:", clipboardError)
+        }
       }
     } else {
       // Fallback: copy link to clipboard
+      try {
+        await navigator.clipboard.writeText(video.file_path)
+        toast({
+          title: "Link copied",
+          description: "Video link copied to clipboard",
+        })
+      } catch (error) {
+        console.error("Clipboard write failed:", error)
+        toast({
+          title: "Copy failed",
+          description: "Could not copy the link to your clipboard",
+          variant: "destructive",
+        })
+      }
+    }
+  }
+
+  const handleCopyLink = async () => {
+    try {
       await navigator.clipboard.writeText(video.file_path)
       toast({
         title: "Link copied",
         description: "Video link copied to clipboard",
       })
+    } catch (error) {
+      console.error("Clipboard write failed:", error)
+      toast({
+        title: "Copy failed",
+        description: "Could not copy the link to your clipboard",
+        variant: "destructive",
+      })
     }
-  }
-
-  const handleCopyLink = async () => {
-    await navigator.clipboard.writeText(video.file_path)
-    toast({
-      title: "Link copied",
-      description: "Video link copied to clipboard",
-    })
   }
 
   const handleDelete = () => {
@@ -70,11 +102,13 @@ export function VideoActions({ video, showLabels = false }: VideoActionsProps) {
       startTransition(async () => {
         try {
           await deleteVideo(video.id)
+          onDeleted?.()
           toast({
             title: "Video deleted",
             description: "The video has been successfully deleted",
           })
         } catch (error) {
+          console.error("Failed to delete video:", error)
           toast({
             title: "Error",
             description: "Failed to delete video",

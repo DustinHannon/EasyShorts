@@ -4,6 +4,24 @@ import { resolveBackgroundUrl, backgroundKindOf } from "@/lib/backgrounds"
 
 export const runtime = "nodejs"
 
+// A blob URL is only acceptable if it is https on the Vercel Blob store host.
+// Checking the pathname alone is not enough: `new URL("javascript:/users/x/;alert(1)")`
+// yields the pathname "/users/x/;alert(1)", and the stored URL is later used as
+// an anchor href in the gallery.
+function isVercelBlobUrl(raw: unknown): URL | null {
+  if (typeof raw !== "string") return null
+  let parsed: URL
+  try {
+    parsed = new URL(raw)
+  } catch {
+    return null
+  }
+  if (parsed.protocol !== "https:" || !parsed.hostname.endsWith(".public.blob.vercel-storage.com")) {
+    return null
+  }
+  return parsed
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { supabase, user } = await getRouteUser()
@@ -14,14 +32,9 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { url, size, projectId, quality, duration, background } = body
 
-    // Validate url: must be a parseable URL scoped to this user's storage prefix.
-    let parsedPathname: string
-    try {
-      parsedPathname = new URL(url).pathname
-    } catch {
-      return NextResponse.json({ error: "Invalid request" }, { status: 400 })
-    }
-    if (!parsedPathname.startsWith(`/users/${user.id}/`)) {
+    // Validate url: must be an https Vercel Blob URL scoped to this user's prefix.
+    const parsed = isVercelBlobUrl(url)
+    if (!parsed || !parsed.pathname.startsWith(`/users/${user.id}/`)) {
       return NextResponse.json({ error: "Invalid request" }, { status: 400 })
     }
 
@@ -56,10 +69,16 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Allow override via supplied 'background' if you send one
+    // Allow override via supplied 'background' — but only when it is itself a
+    // valid https blob URL. Anything else is ignored (the derived value stands).
     if (background?.url) {
-      background_url = background.url
-      background_type = background.type ?? background_type
+      const parsedBg = isVercelBlobUrl(background.url)
+      if (parsedBg) {
+        background_url = parsedBg.href
+        if (typeof background.type === "string" && background.type.length > 0 && background.type.length <= 50) {
+          background_type = background.type
+        }
+      }
     }
 
     const { error: insErr } = await supabase.from("generated_videos").insert({
