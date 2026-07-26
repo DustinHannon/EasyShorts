@@ -1,7 +1,10 @@
 import { updateSession } from "@/lib/supabase/middleware"
 import type { NextRequest } from "next/server"
 
-export async function middleware(request: NextRequest) {
+// Renamed from the deprecated `middleware` file convention (Next 16). The file
+// is `proxy.ts` and the export is `proxy`; the `config.matcher` contract below
+// is unchanged. This is still the app's only auth gate — see lib/supabase/middleware.ts.
+export async function proxy(request: NextRequest) {
   return await updateSession(request)
 }
 
