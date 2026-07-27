@@ -44,12 +44,14 @@ EasyShorts follows a modern full-stack architecture with clear separation of con
 - background_type (text, check: image/video/color)
 - video_settings (jsonb, default '{}')
 - status (text, check: draft/processing/completed/failed)
-- progress (integer, default 0)
-- progress_stage (text, default 'waiting')
-- progress_message (text, default 'Waiting to start...')
+- progress (integer, default 0)              -- vestigial, see note
+- progress_stage (text, default 'waiting')   -- vestigial, see note
+- progress_message (text, default 'Waiting to start...') -- vestigial, see note
 - created_at (timestamptz)
 - updated_at (timestamptz)
 ```
+
+The three `progress*` columns are **currently unused**: nothing in the app writes them, and the polling route that once read them (`/api/video-progress/[projectId]`) was deleted as dead code — render progress is client-side React state in the wizard. The columns are deliberately retained (dropping columns is irreversible) and still ship in `scripts/full-database-setup.sql`.
 
 #### backgrounds
 ```sql
@@ -100,7 +102,7 @@ Row Level Security (RLS) policies ensure data isolation:
 ### Authentication Flow
 1. User signs up/logs in via Supabase Auth
 2. JWT token stored in httpOnly cookie
-3. Middleware validates token on protected routes
+3. Root `proxy.ts` (Next 16's replacement for the deprecated `middleware.ts` file convention) validates the token on protected routes, delegating to `updateSession` in `lib/supabase/middleware.ts`
 4. Server-side Supabase client uses cookie-based auth for database operations
 
 ### Video Generation Pipeline
@@ -125,7 +127,7 @@ Row Level Security (RLS) policies ensure data isolation:
 - **Caching**: Aggressive caching of static assets
 
 ### Backend Optimization
-- **Database Indexing**: Optimized queries with proper indexes
+- **Database Indexing**: Composite `(user_id, created_at DESC)` indexes — `idx_projects_user_created`, `idx_generated_videos_user_created`, `idx_backgrounds_user_created` — serve the `WHERE user_id = $1 ORDER BY created_at DESC` list queries on the dashboard and gallery; single-column `user_id` (and `project_id`) indexes remain for the RLS/foreign-key lookups
 - **Connection Pooling**: Supabase handles connection management
 - **File Storage**: CDN delivery via Vercel Blob
 - **AI Quotas**: Per-user daily quotas on the AI routes via the `consume_ai_quota` RPC (429 when exhausted); there is no general request throttling
@@ -174,23 +176,26 @@ Row Level Security (RLS) policies ensure data isolation:
 ```bash
 pnpm install
 pnpm dev
+pnpm test   # vitest
 ```
 
 ### Production Deployment
 - Automatic deployment on push to `main` via Vercel git integration
 - Environment variables configured in Vercel dashboard
-- API functions have 60s max duration (vercel.json)
+- `vercel.json` contains a single `functions` block giving API routes a 60s max duration — nothing else
+- The production build emits zero warnings
 
 ## Development Workflow
 
 ### Code Standards
 - TypeScript for type safety
-- ESLint only (flat config in `eslint.config.mjs`, run via `pnpm lint`); no Prettier is installed — formatting follows existing file style
+- ESLint (flat config in `eslint.config.mjs`, run via `pnpm lint`) and vitest (`pnpm test`, config in `vitest.config.ts`); no Prettier is installed — formatting follows existing file style
+- Test coverage is targeted, not blanket: `lib/captions.ts` is the covered module (`lib/captions.test.ts` — 20 tests over caption grouping, pause splitting, window monotonicity and sanitisation)
 - Conventional commits for version control
 
 ### Version Control
 - Sole engineer; commits go directly to `main`
-- No pull-request gate — correctness is enforced by running `pnpm exec tsc --noEmit`, `pnpm lint`, and `pnpm build` before pushing
+- No pull-request gate — correctness is enforced by running `pnpm exec tsc --noEmit`, `pnpm lint`, `pnpm test`, and `pnpm build` before pushing
 - Pushing `main` triggers the Vercel production deploy
 
 ## Future Enhancements

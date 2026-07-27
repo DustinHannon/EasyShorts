@@ -50,6 +50,9 @@ cp .env.example .env.local
 
 # Run development server
 pnpm dev
+
+# Run the test suite (vitest)
+pnpm test
 ```
 
 ### Environment Variables
@@ -98,14 +101,13 @@ This creates 5 tables with RLS policies: `profiles`, `projects`, `backgrounds`, 
 | `/api/video/record` | POST | Persist generated-video metadata to the database |
 | `/api/background/upload` | POST | Issue a Vercel Blob client-upload token for a custom background |
 | `/api/background/record` | POST | Persist uploaded-background metadata to the database |
-| `/api/video-progress/[projectId]` | GET | Track video generation progress |
 
 Video and background **deletes** go through server actions (`lib/supabase/actions.ts`), not API routes. All AI endpoints enforce a per-user daily quota via the `consume_ai_quota` Postgres function (script 50/day, speech 50/day, image 20/day, transcribe 50/day).
 
 ## Database Schema
 
 - **profiles** - User account information (auto-created on signup)
-- **projects** - Video project metadata, scripts, settings, and progress tracking
+- **projects** - Video project metadata, scripts, and settings (the `progress*` columns are vestigial — render progress is client-side wizard state, nothing writes them)
 - **backgrounds** - User-uploaded and AI-generated backgrounds
 - **generated_videos** - Final video outputs with metadata
 - **ai_usage** - Per-user daily AI quota counters (written only by the `consume_ai_quota` function)
