@@ -1,4 +1,4 @@
-import { createServerClient } from "@supabase/ssr"
+import { createServerClient, type CookieOptions } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 
 // Check if Supabase environment variables are available
@@ -33,6 +33,30 @@ export async function updateSession(request: NextRequest) {
     })
   }
 
+  // Everything @supabase/ssr asked us to write to the response (session cookies,
+  // cookie clears, no-store headers), accumulated across setAll calls and
+  // replayed onto EVERY response this function returns. Two reasons:
+  //  1. Redirects and JSON 401s are brand-new response objects. A bare
+  //     NextResponse.redirect() silently drops what setAll wrote, e.g. the
+  //     session cookies from the OAuth/PKCE code exchange (the user lands
+  //     signed out and the single-use code is burned) or the cookie clears
+  //     after a failed refresh.
+  //  2. The library hands over the `Cache-Control: private, no-store…` headers
+  //     only on its FIRST setAll call per client (later calls get `{}`), and one
+  //     request can call setAll more than once (e.g. a refresh that succeeds,
+  //     then a /user failure that clears the session). Rebuilding the response
+  //     per call, which is required so Server Components see the refreshed
+  //     request cookies, would otherwise discard the earlier cookies and
+  //     headers. Those headers MUST accompany any response carrying auth cookies
+  //     so a CDN can never serve one user's session token to another.
+  const authCookies = new Map<string, { value: string; options: CookieOptions }>()
+  const authHeaders: Record<string, string> = {}
+  const withAuthState = (response: NextResponse): NextResponse => {
+    authCookies.forEach(({ value, options }, name) => response.cookies.set(name, value, options))
+    Object.entries(authHeaders).forEach(([key, value]) => response.headers.set(key, value))
+    return response
+  }
+
   let supabaseResponse = NextResponse.next({
     request,
   })
@@ -46,15 +70,16 @@ export async function updateSession(request: NextRequest) {
           return request.cookies.getAll()
         },
         setAll(cookiesToSet, headers) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-          supabaseResponse = NextResponse.next({
-            request,
+          cookiesToSet.forEach(({ name, value, options }) => {
+            request.cookies.set(name, value)
+            authCookies.set(name, { value, options })
           })
-          cookiesToSet.forEach(({ name, value, options }) => supabaseResponse.cookies.set(name, value, options))
-          // @supabase/ssr >=0.10 passes `Cache-Control: private, no-store…` etc. that MUST
-          // accompany any response carrying auth cookies, so a CDN can never serve one
-          // user's session token to another. Empty object when no cookies were written.
-          Object.entries(headers).forEach(([key, value]) => supabaseResponse.headers.set(key, value))
+          Object.assign(authHeaders, headers)
+          supabaseResponse = withAuthState(
+            NextResponse.next({
+              request,
+            }),
+          )
         },
       },
     },
@@ -68,25 +93,32 @@ export async function updateSession(request: NextRequest) {
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     if (error) {
       console.error("Auth code exchange failed:", error.message)
-      return NextResponse.redirect(new URL("/auth/login", request.url))
+      return withAuthState(NextResponse.redirect(new URL("/auth/login", request.url)))
     }
     // Honor a `next` param only when it resolves to this same origin. Prefix
     // blacklisting is not sufficient here: the WHATWG URL parser treats "\"
     // like "/" for http(s), so "/\evil.com" would slip past a "//" check and
-    // resolve to https://evil.com/. Resolving and comparing origins is exact.
+    // resolve to https://evil.com/. Resolving and comparing origins catches that.
+    //
+    // Redirect to the validated URL object ITSELF, never to a string rebuilt from
+    // its parts. The parser also collapses dot-segments, so "/.//evil.com" has
+    // origin === ours but pathname "//evil.com"; re-resolving that pathname
+    // against the base is a scheme-relative reference that lands on evil.com.
     const nextParam = requestUrl.searchParams.get("next")
-    let redirectTo = "/"
+    let destination = new URL("/", requestUrl.origin)
     if (nextParam) {
       try {
         const candidate = new URL(nextParam, requestUrl.origin)
         if (candidate.origin === requestUrl.origin) {
-          redirectTo = candidate.pathname + candidate.search + candidate.hash
+          destination = candidate
         }
       } catch {
         // Malformed `next` — fall through to "/".
       }
     }
-    return NextResponse.redirect(new URL(redirectTo, request.url))
+    // A new redirect response: it must carry the session cookies the exchange
+    // just wrote, or the user is sent onward signed out.
+    return withAuthState(NextResponse.redirect(destination))
   }
 
   // Refresh session if expired - required for Server Components
@@ -98,10 +130,10 @@ export async function updateSession(request: NextRequest) {
   // of a 307 redirect to the HTML login page.
   if (!isPublicRoute && !user) {
     if (pathname.startsWith("/api")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return withAuthState(NextResponse.json({ error: "Unauthorized" }, { status: 401 }))
     }
     const redirectUrl = new URL("/auth/login", request.url)
-    return NextResponse.redirect(redirectUrl)
+    return withAuthState(NextResponse.redirect(redirectUrl))
   }
 
   return supabaseResponse

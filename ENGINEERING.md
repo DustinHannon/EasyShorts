@@ -102,7 +102,7 @@ Row Level Security (RLS) policies ensure data isolation:
 ### Authentication Flow
 1. User signs up/logs in via Supabase Auth
 2. JWT token stored in httpOnly cookie
-3. Root `proxy.ts` (Next 16's replacement for the deprecated `middleware.ts` file convention) validates the token on protected routes, delegating to `updateSession` in `lib/supabase/middleware.ts`
+3. Root `proxy.ts` (Next 16's replacement for the deprecated `middleware.ts` file convention) validates the token on protected routes, delegating to `updateSession` in `lib/supabase/middleware.ts`. `updateSession` also performs the PKCE code exchange on `/auth/callback` (the post-login `next` redirect is restricted to the validated same-origin URL), and once the Supabase client exists it replays every cookie and `Cache-Control: private, no-store` header that `@supabase/ssr` writes onto every response it returns (including redirects and the API 401), so a session is never dropped on a redirect or cached by a CDN
 4. Server-side Supabase client uses cookie-based auth for database operations
 
 ### Video Generation Pipeline
@@ -190,7 +190,7 @@ pnpm test   # vitest
 ### Code Standards
 - TypeScript for type safety
 - ESLint (flat config in `eslint.config.mjs`, run via `pnpm lint`) and vitest (`pnpm test`, config in `vitest.config.ts`); no Prettier is installed — formatting follows existing file style
-- Test coverage is targeted, not blanket: `lib/captions.ts` is the covered module (`lib/captions.test.ts` — 20 tests over caption grouping, pause splitting, window monotonicity and sanitisation)
+- Test coverage is targeted, not blanket: two modules are covered. `lib/captions.ts` (`lib/captions.test.ts` — 20 tests over caption grouping, pause splitting, window monotonicity and sanitisation) and `lib/supabase/middleware.ts` (`lib/supabase/middleware.test.ts` — 22 tests, run against the real `@supabase/ssr` with only `fetch` stubbed: the PKCE code exchange on `/auth/callback`, open-redirect hardening of its `next` parameter, session refresh and dead-session handling, and the rule that every auth cookie and no-store header written by `@supabase/ssr` reaches every response `updateSession` returns, including redirects and the API 401)
 - Conventional commits for version control
 
 ### Version Control
